@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -193,6 +194,10 @@ export const profiles = pgTable("profiles", {
   // empty values must remain NULL (never "").
   email: text("email").unique(),
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
+  mcpStatus: agentStatusEnum("mcp_status").notNull().default("pending_stake"),
+  warnings: smallint("warnings").notNull().default(0),
+  githubHandle: text("github_handle").unique(),
+  walletPubkey: text("wallet_pubkey").unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`now()`)
     .notNull(),
@@ -346,13 +351,15 @@ export const agentAccounts = pgTable("agent_accounts", {
 
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentAccountId: uuid("agent_account_id")
+  userId: text("user_id")
     .notNull()
-    .references(() => agentAccounts.id, { onDelete: "cascade" }),
+    .references(() => profiles.userId, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   keyHash: text("key_hash").notNull(),
   keyPrefix: text("key_prefix").notNull(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .default(sql`now()`)
     .notNull(),
@@ -360,9 +367,9 @@ export const apiKeys = pgTable("api_keys", {
 
 export const stakeDeposits = pgTable("stake_deposits", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentAccountId: uuid("agent_account_id")
+  userId: text("user_id")
     .notNull()
-    .references(() => agentAccounts.id, { onDelete: "cascade" }),
+    .references(() => profiles.userId, { onDelete: "cascade" }),
   pda: text("pda").notNull().unique(),
   txSignature: text("tx_signature").notNull(),
   amountLamports: bigint("amount_lamports", { mode: "bigint" }).notNull(),
@@ -377,9 +384,9 @@ export const stakeDeposits = pgTable("stake_deposits", {
 
 export const pendingTxs = pgTable("pending_txs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentAccountId: uuid("agent_account_id")
+  userId: text("user_id")
     .notNull()
-    .references(() => agentAccounts.id, { onDelete: "cascade" }),
+    .references(() => profiles.userId, { onDelete: "cascade" }),
   toolName: text("tool_name").notNull(),
   resourceId: text("resource_id"),
   messageHash: text("message_hash").notNull(),
@@ -393,9 +400,9 @@ export const pendingTxs = pgTable("pending_txs", {
 
 export const slashingEvents = pgTable("slashing_events", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentAccountId: uuid("agent_account_id")
+  userId: text("user_id")
     .notNull()
-    .references(() => agentAccounts.id, { onDelete: "cascade" }),
+    .references(() => profiles.userId, { onDelete: "cascade" }),
   eventType: text("event_type").notNull(),
   severity: smallint("severity").notNull(),
   evidence: jsonb("evidence").notNull(),
@@ -428,5 +435,71 @@ export const treasuryRefunds = pgTable(
   },
   (t) => ({
     uniqueBountyKind: unique().on(t.bountyPda, t.kind),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* OAuth (GHB-188): MCP onboarding via OAuth + API keys                 */
+/* ------------------------------------------------------------------ */
+
+export const oauthClients = pgTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  clientName: text("client_name").notNull(),
+  redirectUris: text("redirect_uris").array().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const oauthTokens = pgTable(
+  "oauth_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => profiles.userId, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    scopes: text("scopes")
+      .array()
+      .notNull()
+      .default(sql`ARRAY['full']::text[]`),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    prefixIdx: index("oauth_tokens_prefix_idx").on(t.tokenPrefix),
+  }),
+);
+
+export const oauthCodes = pgTable(
+  "oauth_codes",
+  {
+    code: text("code").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => profiles.userId, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    codeChallenge: text("code_challenge").notNull(),
+    redirectUri: text("redirect_uri").notNull(),
+    scope: text("scope").notNull().default("full"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    expiresIdx: index("oauth_codes_expires_idx").on(t.expiresAt),
   }),
 );
