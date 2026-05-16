@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/supabase/admin", () => ({ supabaseAdmin: vi.fn() }));
 vi.mock("@/lib/auth/middleware");
-vi.mock("@/lib/tools/create-account/complete", () => ({
+vi.mock("@/lib/config", () => ({
   getChainId: () => "solana-mainnet",
+  getProgramAddress: () => "test_program_addr",
 }));
 
 import { handleBountiesList } from "@/lib/tools/bounties/list";

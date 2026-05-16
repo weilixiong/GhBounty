@@ -1,7 +1,7 @@
 // API key generation + verification. Format: `ghbk_live_<32 hex chars>`.
 //
 // Storage:
-// - Plaintext is shown to the agent ONCE (response of create_account.complete).
+// - Plaintext is shown to the user ONCE (via web onboarding flow).
 // - bcrypt hash + first 12 chars (prefix) are stored in api_keys table.
 // - Lookup is by prefix (indexed); bcrypt verifies on match.
 

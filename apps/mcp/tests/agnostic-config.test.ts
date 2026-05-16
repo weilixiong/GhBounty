@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getProgramAddress } from "@/lib/tools/create-account/poll";
-import { getChainId } from "@/lib/tools/create-account/complete";
+import { getProgramAddress, getChainId } from "@/lib/config";
 
 describe("getProgramAddress", () => {
   const ORIGINAL = process.env.GHBOUNTY_PROGRAM_ADDRESS;
