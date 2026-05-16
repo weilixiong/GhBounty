@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mintApiKey, verifyApiKey, extractPrefix } from "@/lib/auth/api-key";
+import { mintApiKey, verifyApiKey, extractPrefix } from "../src/api-key";
 
 describe("mintApiKey", () => {
   it("produces a key with the correct prefix and length", () => {

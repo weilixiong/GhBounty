@@ -13,9 +13,11 @@
     "health:gas-station": "tsx scripts/gas-station-health.ts"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.95.0"
+    "@solana/web3.js": "^1.95.0",
+    "bcryptjs": "^3.0.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
