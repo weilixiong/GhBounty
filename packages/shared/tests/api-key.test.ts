@@ -39,4 +39,8 @@ describe("extractPrefix", () => {
   it("throws on invalid format", () => {
     expect(() => extractPrefix("invalid_key")).toThrow();
   });
+
+  it("throws on too-short input", () => {
+    expect(() => extractPrefix("ghbk_live_ab")).toThrow();
+  });
 });

@@ -34,6 +34,9 @@ export function extractPrefix(plaintext: string): string {
   if (!plaintext.startsWith(PREFIX)) {
     throw new Error("Invalid API key format");
   }
+  if (plaintext.length < PREFIX.length + PREFIX_HEX_LEN) {
+    throw new Error("Invalid API key format");
+  }
   return plaintext.slice(0, PREFIX.length + PREFIX_HEX_LEN);
 }
 
