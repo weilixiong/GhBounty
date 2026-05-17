@@ -47,10 +47,11 @@ export const ESCROW_PROGRAM_ID = new PublicKey(
  * by the relayer's scorer keypair, not via gas-station sponsorship.
  */
 export const ALLOWED_DISCRIMINATORS_HEX: ReadonlySet<string> = new Set([
-  "7a5a0e8f087dc802", // create_bounty   (company)
-  "cbe99dbf4625cd00", // submit_solution (dev)
-  "cf2b5deedeb84fdb", // resolve_bounty  (company picks winner / payout)
-  "4f416b8f80a5872e", // cancel_bounty   (company)
+  "7a5a0e8f087dc802", // create_bounty      (company)
+  "cbe99dbf4625cd00", // submit_solution    (dev)
+  "cf2b5deedeb84fdb", // resolve_bounty     (company picks winner / payout)
+  "4f416b8f80a5872e", // cancel_bounty      (company)
+  "d5cbd1d000e6846a", // init_stake_deposit (MCP user activation, GHB-188)
 ]);
 
 /**

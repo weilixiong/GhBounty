@@ -718,12 +718,13 @@ describe("validateSolanaSponsorTx — review-fee transfer rejections", () => {
 // ── exhaustive rejection-code coverage check ─────────────────────────
 
 describe("validateSolanaSponsorTx — sanity", () => {
-  test("ALLOWED_DISCRIMINATORS_HEX contains exactly the 4 user-initiated ixs", () => {
-    expect(ALLOWED_DISCRIMINATORS_HEX.size).toBe(4);
+  test("ALLOWED_DISCRIMINATORS_HEX contains exactly the 5 user-initiated ixs", () => {
+    expect(ALLOWED_DISCRIMINATORS_HEX.size).toBe(5);
     expect(ALLOWED_DISCRIMINATORS_HEX.has("7a5a0e8f087dc802")).toBe(true); // create_bounty
     expect(ALLOWED_DISCRIMINATORS_HEX.has("cbe99dbf4625cd00")).toBe(true); // submit_solution
     expect(ALLOWED_DISCRIMINATORS_HEX.has("cf2b5deedeb84fdb")).toBe(true); // resolve_bounty
     expect(ALLOWED_DISCRIMINATORS_HEX.has("4f416b8f80a5872e")).toBe(true); // cancel_bounty
+    expect(ALLOWED_DISCRIMINATORS_HEX.has("d5cbd1d000e6846a")).toBe(true); // init_stake_deposit
   });
 
   test("ESCROW_PROGRAM_ID matches the value in relayer/.env.example", () => {
