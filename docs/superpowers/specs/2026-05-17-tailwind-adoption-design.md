@@ -2,15 +2,30 @@
 
 **Date:** 2026-05-17
 **Branch:** `feature/tailwind`
-**Status:** Design approved, pending implementation plan
+**Status:** Design approved (revised 2026-05-17 after planning-time audit)
 
 ## Problem
 
-`frontend/app/globals.css` has ~3,790 lines of landing-page CSS imported globally in `app/layout.tsx`. Three concrete pain points:
+`frontend/app/globals.css` has ~3,790 lines of CSS imported globally in `app/layout.tsx`. Three concrete pain points:
 
-1. **Universal reset bleeds everywhere.** Line 22 (`* { box-sizing: border-box; margin: 0; padding: 0; }`) zeroes out padding/margin on every element of every route, not just the landing.
-2. **Generic class names live in global scope.** Class names like `.card`, `.section`, `.container`, `.btn`, `.nav` are defined globally with landing-specific styles. Any component in `/app/*` that uses these names by accident inherits unwanted styles.
-3. **No shared component layer.** Each product screen rewrites inline styles, leading to drift and inconsistency. The credentials screen specifically showed padding overrides this week, which triggered this initiative.
+1. **Universal reset bleeds everywhere.** Line 22 (`* { box-sizing: border-box; margin: 0; padding: 0; }`) zeroes out padding/margin on every element of every route.
+2. **No shared component layer.** Each product screen reuses or rewrites the same class strings, leading to drift and inconsistency. The credentials screen specifically showed padding overrides this week, which triggered this initiative.
+3. **Everything is in one global file.** All design tokens, resets, landing-specific styles, and product/dashboard styles coexist in `globals.css`.
+
+### Planning-time audit (added 2026-05-17)
+
+Initial assumption: `globals.css` is "landing CSS" that can be moved into a route group. **This is false.** Audit of class usage shows `globals.css` is the **app's entire current design system**:
+
+| Class family | Used by | Notes |
+|---|---|---|
+| `.nav`, `.hero`, `.section`, `.terminal-*`, `.track`, `.partner-*`, `.faq-*`, `.pipeline-*` | Landing only (`app/page.tsx`) | ~700 lines |
+| `.btn`, `.btn-primary`, `.btn-ghost`, `.btn-danger`, `.btn-sm` | Landing + `/app/*` + `/oauth/*` | App-wide |
+| `.dash`, `.dash-hero`, `.dash-title`, `.dash-grid`, `.dash-col`, `.dash-toolbar`, `.dash-aside` | All `/app/*` + `/oauth/*` | ~800 lines (l.1285+) |
+| `.modal`, `.modal-head`, `.modal-foot`, `.modal-narrow`, `.modal-backdrop`, `.modal-close` | `/app/*` modals | App-wide |
+| `.field`, `.field-label`, `.form-error` | `/app/*` forms | App-wide |
+| `.eyebrow`, `.app-loading`, `.loading-dot`, `.mono-inline`, `.profile-card`, `.token-pill`, `.section-label`, `.pick-*` | App-wide utilities | App-wide |
+
+**Implication:** moving `globals.css` into a `(landing)` route group breaks `/app/credentials`, `/app/stake`, `/oauth/authorize`, etc. The original "isolate the legacy" strategy is therefore replaced by the strategy below.
 
 ## Goals
 
@@ -30,44 +45,58 @@
 
 ## Architecture
 
+### Coexistence-first strategy (revised)
+
+`globals.css` is **not split** in this PR. It remains the global stylesheet for the whole app. Tailwind v4 is added on top by prepending `@import "tailwindcss"` and a `@theme` block. shadcn/ui components live in `frontend/components/ui/` and consume Tailwind utilities.
+
+Migration happens **gradually**, one component at a time, in subsequent PRs. As a screen is migrated to shadcn + Tailwind, the legacy classes it used (`.btn`, `.dash-*`, `.modal-*`, etc.) become unused. Once a class has zero consumers across the codebase, it gets deleted from `globals.css`. When `globals.css` eventually contains only landing-specific classes, that's when (and only then) we evaluate isolating it into a route group.
+
 ### File structure
 
 ```
 frontend/app/
-├── layout.tsx                    Root layout — imports new globals.css only
-├── globals.css                   ~50 lines: @theme + @import "tailwindcss"
-├── (landing)/                    Route group, no URL prefix
-│   ├── layout.tsx                Wraps landing-only routes; imports landing.css
-│   ├── landing.css               The current 3,790 lines, moved as-is
-│   └── page.tsx                  The landing (moved from app/page.tsx)
-├── app/                          /app/* product routes — clean of landing CSS
-├── agents/                       Audited during implementation (see Open questions)
-├── oauth/                        Audited during implementation
-├── api/                          Backend, no CSS impact
-└── components/
-    └── ui/                       shadcn/ui copy-paste components
-        └── button.tsx            First smoke-test component
+├── layout.tsx                    Root layout — unchanged
+├── globals.css                   Top of file: @import "tailwindcss" + @theme
+│                                 Rest of file: legacy CSS, untouched
+├── page.tsx                      Landing, unchanged
+├── app/                          /app/* product routes, unchanged
+├── agents/                       Unchanged
+├── oauth/                        Unchanged
+└── api/                          Unchanged
+
+frontend/
+├── components/
+│   ├── ui/                       NEW — shadcn/ui copy-paste components
+│   │   └── button.tsx            First smoke-test component
+│   └── ...                       Existing components, unchanged
+├── lib/
+│   └── utils.ts                  NEW — cn() helper (clsx + tailwind-merge)
+├── components.json               NEW — shadcn config
+├── postcss.config.mjs            NEW — Tailwind v4 PostCSS plugin
+└── package.json                  Adds: tailwindcss@4, @tailwindcss/postcss,
+                                  postcss, clsx, tailwind-merge,
+                                  class-variance-authority, lucide-react
 ```
 
-The Next.js route group `(landing)` does not affect URLs — `/` remains `/`. It only scopes the layout (and therefore the CSS import) to landing routes.
+No files are moved or renamed. No route groups are introduced. The landing keeps loading `globals.css` from the root layout exactly as today.
 
 ### Token mapping (`@theme`)
 
 Tailwind v4 defines design tokens in CSS via `@theme`. Tokens generate utility classes automatically (`bg-accent`, `text-text-dim`, `font-display`, etc).
 
-New `globals.css`:
+A new block goes **at the top** of `globals.css`, before the existing `:root` and all legacy rules:
 
 ```css
 @import "tailwindcss";
 
 @theme {
-  /* Brand colors */
+  /* Brand colors — duplicate of the legacy :root values, in --color-* namespace */
   --color-bg: #05080A;
   --color-bg-2: #0A0F12;
   --color-bg-elev: #0B1014;
   --color-surface: #0D1316;
   --color-surface-2: #121A1E;
-  --color-border: rgba(0, 229, 209, 0.12);
+  --color-border-brand: rgba(0, 229, 209, 0.12);
   --color-border-strong: rgba(0, 229, 209, 0.28);
   --color-text: #E8F4F3;
   --color-text-dim: #8A9A9A;
@@ -77,12 +106,12 @@ New `globals.css`:
   --color-accent-deep: #008C7F;
   --color-danger: #FF6B6B;
 
-  /* Fonts */
-  --font-display: 'Space Grotesk', 'Helvetica Neue', sans-serif;
-  --font-body: 'Inter', 'Helvetica Neue', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+  /* Fonts — reference the next/font CSS variables already wired in app/layout.tsx */
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
 
-  /* shadcn semantic aliases — point to brand tokens */
+  /* shadcn semantic aliases */
   --color-background: var(--color-bg);
   --color-foreground: var(--color-text);
   --color-primary: var(--color-accent);
@@ -91,20 +120,17 @@ New `globals.css`:
   --color-muted-foreground: var(--color-text-dim);
 }
 
-html, body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-}
+/* All existing legacy CSS continues below this point, untouched. */
 ```
 
-**What is intentionally NOT mapped** (uses Tailwind v4 defaults, which already align with current CSS):
-- Spacing scale — Tailwind's `p-4` (16px), `p-6` (24px), `p-8` (32px) cover most current usage.
-- Border radii — `rounded-lg` (12px), `rounded-full` (9999px) align with current values.
-- Shadows — Tailwind defaults are sufficient.
+**Note on `--color-border-brand`:** the existing legacy CSS uses `--border` (and Tailwind's preflight uses `--border` for its own border color). Naming the brand token `--color-border-brand` avoids collisions. Utility class becomes `border-border-brand`.
 
-**Coexistence with legacy CSS:** `landing.css` keeps its own `:root { --accent, --bg, ... }` block. The Tailwind `@theme` block uses the `--color-*` prefix. The two namespaces do not collide.
+**Note on fonts:** `frontend/app/layout.tsx` already loads Space Grotesk, Inter, and JetBrains Mono via `next/font/google` and exposes them as CSS variables `--font-display`, `--font-body`, `--font-mono` on `<html>`. The `@theme` references these existing variables — no font name strings duplicated.
+
+**What is intentionally NOT mapped** (uses Tailwind v4 defaults):
+- Spacing scale, border radii, shadows.
+
+**Coexistence with legacy CSS:** the legacy `:root` block uses unprefixed names (`--accent`, `--bg`, etc.). The Tailwind `@theme` block uses the `--color-*` prefix. The two namespaces do not collide. Tailwind's Preflight is idempotent with the legacy `* { box-sizing; margin: 0; padding: 0 }` for the parts it overlaps; remaining legacy resets persist.
 
 ### shadcn/ui setup
 
@@ -161,28 +187,30 @@ Order of component additions (driven by real demand, not pre-emptive):
 
 Manual checks for the foundation PR:
 
-1. `pnpm dev` builds successfully with no Tailwind config errors.
-2. The landing at `/` renders identically to before (visual diff via screenshots).
-3. `/app/credentials` no longer has padding bleed from the universal reset.
-4. The smoke-test `Button` on credentials renders with brand accent color.
-5. `pnpm typecheck` and `pnpm test` pass (pre-commit hook gate).
+1. `pnpm dev` runs with no Tailwind / PostCSS errors.
+2. The landing at `/` renders identically to before (visual diff via screenshots) — no regression from Tailwind Preflight overlapping legacy resets.
+3. `/app/credentials` and `/oauth/authorize` still render as today (legacy `.dash`, `.btn`, `.modal` etc. are untouched).
+4. The smoke-test `Button` on credentials renders with brand accent color and demonstrates the migration pattern works.
+5. A trivial Tailwind utility usage (e.g. `className="text-accent"`) on the same page resolves to the expected color, confirming `@theme` is wired.
+6. `pnpm typecheck` and `pnpm test` pass (pre-commit hook gate).
 
 ## Open questions for implementation
 
-These get resolved while writing the implementation plan, not now:
+Resolved during planning:
 
-1. **Does `app/agents/` or `app/oauth/` depend visually on landing CSS classes?** If yes, decide whether to move them into the `(landing)` route group or copy the required styles into their own scoped CSS.
-2. **Font loading strategy** — the current CSS references `Space Grotesk`, `Inter`, `JetBrains Mono` by name. Are they loaded via `next/font` already, or via a `<link>` tag in the document head? The implementation plan needs to confirm before migration.
-3. **Pre-commit hook impact** — the hook runs `pnpm typecheck && pnpm test` workspace-wide. Tailwind install must not break either.
+1. **`/oauth/*` dependency on legacy CSS** — confirmed: heavy use of `.dash`, `.dash-hero`, `.eyebrow`, `.app-loading`, `.loading-dot`, `.mono-inline`. **Resolution:** coexistence-first strategy — `globals.css` stays in place, no isolation in this PR.
+2. **`/agents/*` dependency** — uses its own `agents.module.css` (CSS module, scoped). No globals.css coupling beyond tokens.
+3. **Font loading** — already wired via `next/font/google` in `app/layout.tsx` exposing CSS variables `--font-display`, `--font-body`, `--font-mono`. **Resolution:** `@theme` references these existing variables.
+4. **Pre-commit hook** — runs `pnpm typecheck && pnpm test` workspace-wide. Plan must keep both passing at every commit.
 
 ## Decisions summary
 
 | Axis | Decision |
 |---|---|
 | Stack | Tailwind v4 + shadcn/ui (new-york style) |
-| Legacy CSS handling | Moved to `app/(landing)/landing.css`, loaded only inside the `(landing)` route group |
-| Token mapping | Brand colors + fonts via `@theme`; spacing, radii, shadows use Tailwind defaults |
-| Coexistence | Tailwind `--color-*` namespace vs. landing `--accent` namespace — no collision |
-| PR 1 scope | Foundation install + token mapping + legacy isolation + `Button` smoke-test on credentials |
-| Future migrations | Component by component, on demand, separate PRs |
+| Legacy CSS handling | **Unchanged in this PR.** Tailwind imports and `@theme` prepended to `globals.css`; rest of the file untouched. Isolation is deferred to gradual per-component erosion. |
+| Token mapping | Brand colors + font references via `@theme`; spacing, radii, shadows use Tailwind defaults |
+| Coexistence | Tailwind `--color-*` namespace vs. legacy `--accent` namespace — no collision |
+| PR 1 scope | Tailwind install + token mapping + shadcn init + `Button` smoke-test on credentials |
+| Future migrations | Component by component, on demand. Legacy classes deleted from `globals.css` only when they have zero consumers. |
 | Full landing refactor | Deferred indefinitely |
