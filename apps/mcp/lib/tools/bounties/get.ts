@@ -36,12 +36,12 @@ export async function handleBountiesGet(raw: unknown) {
 
   // If caller is a dev, surface their submission for this bounty (if any).
   let my_submission: { id: string; status: string } | null = null;
-  if (auth.agent.role === "dev" && row.pda) {
+  if (auth.profile.role === "dev" && row.pda && auth.profile.wallet_pubkey) {
     const { data: sub } = await supabase
       .from("submissions")
       .select("id, state")
       .eq("issue_pda", row.pda)
-      .eq("solver", auth.agent.wallet_pubkey)
+      .eq("solver", auth.profile.wallet_pubkey)
       .maybeSingle();
     if (sub) my_submission = { id: (sub as any).id, status: (sub as any).state };
   }

@@ -27,7 +27,7 @@ export async function handleSubmissionsGet(raw: unknown) {
   if (!data) return { error: mcpError("NotFound", "Submission not found") };
 
   const row = data as any;
-  const callerWallet = auth.agent.wallet_pubkey;
+  const callerWallet = auth.profile.wallet_pubkey;
   const isSolver = row.solver === callerWallet;
   const bountyRel = Array.isArray(row.bounty) ? row.bounty[0] : row.bounty;
   const isBountyOwner = bountyRel?.creator === callerWallet;

@@ -28,17 +28,18 @@ describe("whoami handler", () => {
   it("returns agent info + balance when authorized", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      apiKeyId: "key-uuid",
-      agent: {
-        id: "agent-uuid",
+      credentialId: "key-uuid",
+      credentialKind: "api_key",
+      profile: {
+        user_id: "did:privy:test_user",
         role: "dev",
-        status: "active",
+        mcp_status: "active",
         wallet_pubkey: "7xK7gE8FpQrSjVz9mYwGtCkBtNvDtTvPzGjGpZqMxKqp",
         github_handle: "claudebot",
       },
     });
     const result = await handleWhoami({ authorization: "Bearer ghbk_live_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
-    expect((result as any).agent_id).toBe("agent-uuid");
+    expect((result as any).user_id).toBe("did:privy:test_user");
     expect((result as any).balances.sol_lamports).toBe("100000000");
   });
 });
