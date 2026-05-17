@@ -12,23 +12,25 @@ export async function handleWhoami(input: WhoamiInput) {
   if (!auth.ok) {
     return { error: auth.error };
   }
-  const { agent } = auth;
+  const { profile } = auth;
 
   const rpc = solanaRpc();
   let balanceLamports = 0n;
   try {
-    const { value } = await rpc.getBalance(address(agent.wallet_pubkey)).send();
-    balanceLamports = value;
+    if (profile.wallet_pubkey) {
+      const { value } = await rpc.getBalance(address(profile.wallet_pubkey)).send();
+      balanceLamports = value;
+    }
   } catch {
     // Soft fail — RPC hiccup; return 0 balance instead of erroring.
   }
 
   return {
-    agent_id: agent.id,
-    role: agent.role,
-    status: agent.status,
-    github_handle: agent.github_handle,
-    wallet_pubkey: agent.wallet_pubkey,
+    user_id: profile.user_id,
+    role: profile.role,
+    mcp_status: profile.mcp_status,
+    github_handle: profile.github_handle,
+    wallet_pubkey: profile.wallet_pubkey,
     balances: {
       sol_lamports: balanceLamports.toString(),
     },

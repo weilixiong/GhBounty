@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/supabase/admin", () => ({ supabaseAdmin: vi.fn() }));
 vi.mock("@/lib/auth/middleware");
-vi.mock("@/lib/tools/create-account/complete", () => ({
+vi.mock("@/lib/config", () => ({
   getChainId: () => "solana-mainnet",
+  getProgramAddress: () => "test_program_addr",
 }));
 
 import { handleBountiesList } from "@/lib/tools/bounties/list";
@@ -28,7 +29,9 @@ describe("bounties.list", () => {
   it("returns paginated open bounties", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "7", github_handle: "h" },
+      credentialId: "key-uuid",
+      credentialKind: "api_key",
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "7", github_handle: "h" },
     });
 
     (supabaseAdmin as any).mockReturnValue({
@@ -79,7 +82,9 @@ describe("bounties.get", () => {
     const { handleBountiesGet } = await import("@/lib/tools/bounties/get");
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "7", github_handle: "h" },
+      credentialId: "key-uuid",
+      credentialKind: "api_key",
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "7", github_handle: "h" },
     });
     (supabaseAdmin as any).mockReturnValue({
       from: () => ({

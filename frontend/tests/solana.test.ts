@@ -11,9 +11,12 @@ import { describe, it, expect, vi } from "vitest";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   buildCreateBountyIx,
+  buildInitStakeDepositIx,
   buildSubmitSolutionIx,
+  deriveStakeDepositPda,
   findBountyPda,
   findSubmissionPda,
+  MIN_STAKE_LAMPORTS,
   PROGRAM_ID,
 } from "@/lib/solana";
 
@@ -229,5 +232,56 @@ describe("buildSubmitSolutionIx", () => {
         makeStubConnection(0) as unknown as Parameters<typeof buildSubmitSolutionIx>[1],
       ),
     ).rejects.toThrow(/not found on-chain/);
+  });
+});
+
+/* ================================================================
+ * GHB-188: init_stake_deposit helpers
+ * ================================================================ */
+
+describe("deriveStakeDepositPda", () => {
+  it("is deterministic for the same owner", () => {
+    const [a] = deriveStakeDepositPda(CREATOR_A);
+    const [b] = deriveStakeDepositPda(CREATOR_A);
+    expect(a.toBase58()).toBe(b.toBase58());
+  });
+
+  it("differs across owners", () => {
+    const [a] = deriveStakeDepositPda(CREATOR_A);
+    const [b] = deriveStakeDepositPda(CREATOR_B);
+    expect(a.toBase58()).not.toBe(b.toBase58());
+  });
+});
+
+describe("buildInitStakeDepositIx", () => {
+  it("returns instruction targeting the program with the correct accounts", async () => {
+    const ix = await buildInitStakeDepositIx(CREATOR_A, MIN_STAKE_LAMPORTS);
+    const [stakePda] = deriveStakeDepositPda(CREATOR_A);
+
+    expect(ix.programId.toBase58()).toBe(PROGRAM_ID.toBase58());
+    expect(ix.keys).toHaveLength(3);
+
+    // owner: signer + writable
+    expect(ix.keys[0].pubkey.toBase58()).toBe(CREATOR_A.toBase58());
+    expect(ix.keys[0].isSigner).toBe(true);
+    expect(ix.keys[0].isWritable).toBe(true);
+
+    // stake PDA: writable, not signer
+    expect(ix.keys[1].pubkey.toBase58()).toBe(stakePda.toBase58());
+    expect(ix.keys[1].isSigner).toBe(false);
+    expect(ix.keys[1].isWritable).toBe(true);
+
+    // system program: read-only
+    expect(ix.keys[2].pubkey.toBase58()).toBe(SystemProgram.programId.toBase58());
+    expect(ix.keys[2].isSigner).toBe(false);
+    expect(ix.keys[2].isWritable).toBe(false);
+  });
+
+  it("encodes the 8-byte init_stake_deposit discriminator at the head of the data", async () => {
+    // Discriminator from packages/sdk/src/idl.json — guards against IDL drift.
+    const expected = Uint8Array.from([213, 203, 209, 208, 0, 230, 132, 106]);
+    const ix = await buildInitStakeDepositIx(CREATOR_A, MIN_STAKE_LAMPORTS);
+    const head = Uint8Array.from(ix.data.subarray(0, 8));
+    expect(Array.from(head)).toEqual(Array.from(expected));
   });
 });

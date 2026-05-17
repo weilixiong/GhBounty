@@ -41,7 +41,7 @@ describe("submissions.get", () => {
   it("403 when caller is neither solver nor bounty company", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "OTHER_WALLET", github_handle: "h" },
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "OTHER_WALLET", github_handle: "h" },
     });
     mockClient({
       submission: {
@@ -66,7 +66,7 @@ describe("submissions.get", () => {
   it("returns null score when state is pending", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
     });
     mockClient({
       submission: {
@@ -94,7 +94,7 @@ describe("submissions.get", () => {
   it("returns score + source from latest evaluation when scored", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
     });
     mockClient({
       submission: {
@@ -123,7 +123,7 @@ describe("submissions.get", () => {
   it("returns null score when scored but evaluation row missing", async () => {
     (authenticate as any).mockResolvedValue({
       ok: true,
-      agent: { id: "a", role: "dev", status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
+      profile: { user_id: "did:privy:a", role: "dev", mcp_status: "active", wallet_pubkey: "SOLVER_WALLET", github_handle: "h" },
     });
     mockClient({
       submission: {

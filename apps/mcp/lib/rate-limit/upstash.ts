@@ -34,20 +34,13 @@ function redis(): Redis {
   return _redis;
 }
 
-let _createAccount: Ratelimit | null = null;
 let _read: Ratelimit | null = null;
 let _prepare: Ratelimit | null = null;
 
-export function createAccountLimiter(): Ratelimit {
-  if (_createAccount) return _createAccount;
-  _createAccount = new Ratelimit({
-    redis: redis(),
-    limiter: Ratelimit.slidingWindow(5, "1 h"),
-    prefix: "mcp:create_account",
-    analytics: true,
-  });
-  return _createAccount;
-}
+// createAccountLimiter was deleted in GHB-188 along with the create_account.*
+// tools — onboarding now lives on the frontend. Leaving readLimiter and
+// prepareLimiter in place; they're not currently called either, but the
+// read-tools layer will adopt them when production rate-limiting is wired.
 
 export function readLimiter(): Ratelimit {
   if (_read) return _read;

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authenticate } from "@/lib/auth/middleware";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { mcpError } from "@/lib/errors";
-import { getChainId } from "@/lib/tools/create-account/complete";
+import { getChainId } from "@/lib/config";
 
 const ListInput = z.object({
   authorization: z.string().optional(),

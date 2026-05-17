@@ -49,6 +49,26 @@ export const DEFAULT_SCORER = new PublicKey(
  */
 const BOUNTY_SEED = new TextEncoder().encode("bounty");
 const SUBMISSION_SEED = new TextEncoder().encode("submission");
+const STAKE_DEPOSIT_SEED = new TextEncoder().encode("stake_deposit");
+
+/**
+ * GHB-188: minimum stake size enforced on-chain by `init_stake_deposit`
+ * (`MIN_STAKE_LAMPORTS = 35_000_000` ≈ 0.035 SOL). Re-exported so the UI
+ * shows the same number without hard-coding it in two places.
+ *
+ * Declared via `BigInt(...)` rather than the `35_000_000n` literal
+ * because `tsconfig.json` targets ES2017 — BigInt literals require
+ * ES2020 and break `next build`'s type-check step.
+ */
+export const MIN_STAKE_LAMPORTS = BigInt(35_000_000);
+
+/**
+ * GHB-188: lock period (seconds) the program writes onto a new
+ * `StakeDeposit` (`STAKE_LOCK_SECONDS = 14 * 24 * 60 * 60`). Re-exported
+ * so the client can compute the `locked_until` ISO string it POSTs to
+ * `/api/stake` without round-tripping the on-chain account.
+ */
+export const STAKE_LOCK_SECONDS = 14 * 24 * 60 * 60;
 
 export function getConnection(rpc: string = SOLANA_RPC): Connection {
   return new Connection(rpc, "confirmed");
@@ -410,6 +430,57 @@ export async function buildResolveBountyIx(
       bounty: params.bountyPda,
       winningSubmission: params.winningSubmissionPda,
       winner: params.winnerWallet,
+    })
+    .instruction();
+}
+
+/* ================================================================
+ * GHB-188: init_stake_deposit helpers (MCP account activation)
+ * ================================================================ */
+
+/**
+ * Derive the stake-deposit PDA. Mirrors the on-chain seeds
+ *   seeds = [STAKE_DEPOSIT_SEED, owner.key().as_ref()]
+ * so callers can compute the address before sending the tx.
+ *
+ * The PDA is one-per-owner; trying to init a second time fails with
+ * Anchor's "account already exists" error.
+ */
+export function deriveStakeDepositPda(owner: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [STAKE_DEPOSIT_SEED, owner.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+/**
+ * Build the `init_stake_deposit` instruction.
+ *
+ * `amount` is in lamports. The program rejects anything below
+ * `MIN_STAKE_LAMPORTS` (0.035 SOL) with `StakeTooSmall`. On confirmation
+ * the program writes `locked_until = now + STAKE_LOCK_SECONDS` and
+ * transfers `amount` lamports from the owner to the PDA.
+ *
+ * Caller is responsible for:
+ *   1. Wrapping in a Transaction with a fresh blockhash (or routing
+ *      through `submitSponsored` for the gas-station path).
+ *   2. Awaiting confirmation.
+ *   3. POSTing to `/api/stake` so the backend flips
+ *      `profiles.mcp_status → 'active'`.
+ */
+export async function buildInitStakeDepositIx(
+  owner: PublicKey,
+  amount: bigint,
+  connection: Connection = getConnection(),
+): Promise<TransactionInstruction> {
+  const program = getProgram(connection);
+  const [stakePda] = deriveStakeDepositPda(owner);
+  return program.methods
+    .initStakeDeposit(new BN(amount.toString()))
+    .accountsStrict({
+      owner,
+      stake: stakePda,
+      systemProgram: SystemProgram.programId,
     })
     .instruction();
 }

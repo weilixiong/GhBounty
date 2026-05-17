@@ -23,6 +23,11 @@ export type Database = {
           // Optional now that Privy wallet-only logins start with no email.
           email: string | null;
           onboarding_completed: boolean;
+          // GHB-188: MCP identity merge columns.
+          mcp_status: "pending_oauth" | "pending_stake" | "active" | "suspended" | "revoked";
+          warnings: number;
+          github_handle: string | null;
+          wallet_pubkey: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -31,8 +36,38 @@ export type Database = {
           role: "company" | "dev";
           email?: string | null;
           onboarding_completed?: boolean;
+          mcp_status?: "pending_oauth" | "pending_stake" | "active" | "suspended" | "revoked";
+          warnings?: number;
+          github_handle?: string | null;
+          wallet_pubkey?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
+        Relationships: [];
+      };
+      api_keys: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at: string | null;
+          revoked_at: string | null;
+          expires_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at?: string | null;
+          revoked_at?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["api_keys"]["Insert"]>;
         Relationships: [];
       };
       companies: {
@@ -270,6 +305,35 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      stake_deposits: {
+        Row: {
+          id: string;
+          user_id: string;
+          pda: string;
+          tx_signature: string;
+          // BIGINT serialised as string by Supabase over PostgREST.
+          amount_lamports: string;
+          status: "active" | "frozen" | "slashed" | "refunded";
+          locked_until: string;
+          refunded_at: string | null;
+          slashed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          pda: string;
+          tx_signature: string;
+          amount_lamports: string | number;
+          status?: "active" | "frozen" | "slashed" | "refunded";
+          locked_until: string;
+          refunded_at?: string | null;
+          slashed_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stake_deposits"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: Record<never, never>;
@@ -279,6 +343,8 @@ export type Database = {
       issue_state: "open" | "resolved" | "cancelled";
       submission_state: "pending" | "scored" | "winner";
       evaluation_source: "stub" | "opus" | "genlayer";
+      agent_status: "pending_oauth" | "pending_stake" | "active" | "suspended" | "revoked";
+      stake_status: "active" | "frozen" | "slashed" | "refunded";
     };
     CompositeTypes: Record<never, never>;
   };

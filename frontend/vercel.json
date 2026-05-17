@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd .. && pnpm --filter frontend build",
+  "installCommand": "cd .. && pnpm install --frozen-lockfile",
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-oauth-codes",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
