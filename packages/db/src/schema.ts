@@ -192,7 +192,7 @@ export const profiles = pgTable("profiles", {
   // empty values must remain NULL (never "").
   email: text("email").unique(),
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
-  mcpStatus: agentStatusEnum("mcp_status").notNull().default("pending_stake"),
+  mcpStatus: agentStatusEnum("mcp_status").notNull().default("active"),
   warnings: smallint("warnings").notNull().default(0),
   githubHandle: text("github_handle").unique(),
   walletPubkey: text("wallet_pubkey").unique(),
