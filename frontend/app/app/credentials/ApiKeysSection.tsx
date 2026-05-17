@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
+import { Button } from "@/components/ui/button";
+
 import { GenerateKeyModal } from "./GenerateKeyModal";
 import { RevokeKeyModal } from "./RevokeKeyModal";
 
@@ -118,9 +120,9 @@ export function ApiKeysSection({ disabled }: { disabled: boolean }) {
         <h2 className="section-label" style={{ margin: 0 }}>
           API Keys
         </h2>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary btn-sm"
+          size="sm"
           disabled={disabled}
           onClick={() => setShowGenerate(true)}
           title={
@@ -130,7 +132,7 @@ export function ApiKeysSection({ disabled }: { disabled: boolean }) {
           }
         >
           + Generar nueva key
-        </button>
+        </Button>
       </div>
       <p className="modal-note" style={{ marginBottom: 14 }}>
         Las API keys permiten que tu agente hable con{" "}
