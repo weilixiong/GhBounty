@@ -24,6 +24,7 @@ import { useAuth } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/client";
 
 import { ApiKeysSection } from "./ApiKeysSection";
+import { ConnectedAppsSection } from "./ConnectedAppsSection";
 
 interface ProfileGate {
   loading: boolean;
@@ -126,28 +127,7 @@ export function CredentialsClient() {
 
       <ApiKeysSection disabled={stakeRequired} />
 
-      {/*
-       * Phase 4 (Task 30) wires `<ConnectedAppsSection />` in here. For
-       * now we render a placeholder so the layout matches the spec §5
-       * shape and users see what's coming.
-       */}
-      <section className="profile-card">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: 12,
-            marginBottom: 8,
-          }}
-        >
-          <h2 className="section-label">Connected Apps</h2>
-          <span className="field-label-aux">Próximamente</span>
-        </div>
-        <p className="modal-note" style={{ marginBottom: 0 }}>
-          Apps que autorizaste vía OAuth aparecerán acá. Disponible pronto.
-        </p>
-      </section>
+      <ConnectedAppsSection />
     </div>
   );
 }
