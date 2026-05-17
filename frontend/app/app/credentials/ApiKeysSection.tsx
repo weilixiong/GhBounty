@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
+import { Button } from "@/components/ui/button";
+
 import { GenerateKeyModal } from "./GenerateKeyModal";
 import { RevokeKeyModal } from "./RevokeKeyModal";
 
@@ -105,22 +107,14 @@ export function ApiKeysSection({ disabled }: { disabled: boolean }) {
   }, [refresh]);
 
   return (
-    <section className="profile-card">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 6,
-        }}
-      >
-        <h2 className="section-label" style={{ margin: 0 }}>
+    <section className="flex flex-col gap-[18px] rounded-2xl border border-border-brand bg-gradient-to-b from-surface to-surface-2 p-7!">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold tracking-tight">
           API Keys
         </h2>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary btn-sm"
+          size="sm"
           disabled={disabled}
           onClick={() => setShowGenerate(true)}
           title={
@@ -130,9 +124,9 @@ export function ApiKeysSection({ disabled }: { disabled: boolean }) {
           }
         >
           + Generar nueva key
-        </button>
+        </Button>
       </div>
-      <p className="modal-note" style={{ marginBottom: 14 }}>
+      <p className="text-[12.5px] leading-[1.55] text-text-muted">
         Las API keys permiten que tu agente hable con{" "}
         <code className="mono-inline">mcp.ghbounty.com</code>.
       </p>
