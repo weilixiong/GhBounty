@@ -482,7 +482,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.error(
       "[auth-privy] NEXT_PUBLIC_PRIVY_APP_ID missing — Privy provider disabled.",
     );
-    return <>{children}</>;
+    return (
+      <AuthCtx.Provider
+        value={{
+          user: null,
+          ready: false,
+          loginByEmail: async () => null,
+          registerCompany: async () => null,
+          registerDev: async () => null,
+          updateUser: async () => {},
+          logout: async () => {},
+          refresh: () => {},
+        }}
+      >
+        {children}
+      </AuthCtx.Provider>
+    );
   }
 
   return (
