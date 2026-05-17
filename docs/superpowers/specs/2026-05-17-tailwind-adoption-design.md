@@ -106,10 +106,13 @@ A new block goes **at the top** of `globals.css`, before the existing `:root` an
   --color-accent-deep: #008C7F;
   --color-danger: #FF6B6B;
 
-  /* Fonts — reference the next/font CSS variables already wired in app/layout.tsx */
-  --font-display: var(--font-display);
-  --font-body: var(--font-body);
-  --font-mono: var(--font-mono);
+  /* Fonts — declare as fallbacks; next/font's runtime class on <html> overrides
+     these with the hashed Google Font variable. The `font-display`, `font-body`,
+     `font-mono` Tailwind utilities then output `font-family: var(--font-*)`,
+     which resolves to next/font's value at runtime. */
+  --font-display: 'Space Grotesk', 'Helvetica Neue', sans-serif;
+  --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
 
   /* shadcn semantic aliases */
   --color-background: var(--color-bg);
