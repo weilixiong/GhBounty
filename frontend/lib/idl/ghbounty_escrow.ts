@@ -172,6 +172,66 @@ export type GhbountyEscrow = {
       ]
     },
     {
+      "name": "initStakeDeposit",
+      "discriminator": [
+        213,
+        203,
+        209,
+        208,
+        0,
+        230,
+        132,
+        106
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  100,
+                  101,
+                  112,
+                  111,
+                  115,
+                  105,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "submitSolution",
       "discriminator": [
         203,
@@ -259,6 +319,19 @@ export type GhbountyEscrow = {
         69,
         242,
         234
+      ]
+    },
+    {
+      "name": "stakeDeposit",
+      "discriminator": [
+        174,
+        92,
+        136,
+        117,
+        54,
+        202,
+        43,
+        233
       ]
     },
     {
@@ -394,6 +467,74 @@ export type GhbountyEscrow = {
           },
           {
             "name": "cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stakeDeposit",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "Owner / depositor wallet — refund destination."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Lamports currently held in the PDA (decremented on partial slash)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "stakeStatus"
+              }
+            }
+          },
+          {
+            "name": "lockedUntil",
+            "docs": [
+              "Unix seconds at which `refund_stake_deposit` becomes valid."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "createdAt",
+            "docs": [
+              "Unix seconds when the deposit was created."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stakeStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "active"
+          },
+          {
+            "name": "frozen"
+          },
+          {
+            "name": "slashed"
+          },
+          {
+            "name": "refunded"
           }
         ]
       }
