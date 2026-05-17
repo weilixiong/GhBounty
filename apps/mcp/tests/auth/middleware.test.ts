@@ -38,12 +38,195 @@ describe("authenticate", () => {
     }
   });
 
-  it("returns Unauthorized for ghbo_live_ token (OAuth path not built yet)", async () => {
-    const result = await authenticate("Bearer ghbo_live_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  it("returns ok with credentialKind 'oauth_token' for valid ghbo_live_ token + active profile", async () => {
+    const { mintOAuthToken } = await import("@ghbounty/shared");
+    const { plaintext, hash } = mintOAuthToken();
+
+    (supabaseAdmin as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            is: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: "oauth-uuid",
+                    token_hash: hash,
+                    user_id: "did:privy:user-uuid",
+                    scopes: ["full"],
+                    profiles: {
+                      user_id: "did:privy:user-uuid",
+                      role: "dev",
+                      mcp_status: "active",
+                      wallet_pubkey: "7xK...",
+                      github_handle: "claudebot42",
+                    },
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+        update: () => ({
+          eq: () => ({
+            then: (cb: any) => cb(),
+          }),
+        }),
+      }),
+    });
+
+    const result = await authenticate(`Bearer ${plaintext}`);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.profile.role).toBe("dev");
+      expect(result.profile.mcp_status).toBe("active");
+      expect(result.profile.user_id).toBe("did:privy:user-uuid");
+      expect(result.credentialKind).toBe("oauth_token");
+      expect(result.credentialId).toBe("oauth-uuid");
+    }
+  });
+
+  it("returns Unauthorized when ghbo_live_ token prefix not found in DB", async () => {
+    const { mintOAuthToken } = await import("@ghbounty/shared");
+    const { plaintext } = mintOAuthToken();
+
+    (supabaseAdmin as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            is: () => ({
+              maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const result = await authenticate(`Bearer ${plaintext}`);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("Unauthorized");
-      expect(result.error.message).toBe("Invalid token format");
+    }
+  });
+
+  it("returns Unauthorized when ghbo_live_ bcrypt verify fails", async () => {
+    const { mintOAuthToken } = await import("@ghbounty/shared");
+    const { plaintext } = mintOAuthToken();
+    const { hash: wrongHash } = mintOAuthToken();
+
+    (supabaseAdmin as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            is: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: "oauth-uuid",
+                    token_hash: wrongHash,
+                    user_id: "did:privy:user-uuid",
+                    scopes: ["full"],
+                    profiles: {
+                      user_id: "did:privy:user-uuid",
+                      role: "dev",
+                      mcp_status: "active",
+                      wallet_pubkey: null,
+                      github_handle: null,
+                    },
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const result = await authenticate(`Bearer ${plaintext}`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("Unauthorized");
+      expect(result.error.message).toBe("OAuth token mismatch");
+    }
+  });
+
+  it("returns Forbidden when ghbo_live_ profile mcp_status is pending_stake", async () => {
+    const { mintOAuthToken } = await import("@ghbounty/shared");
+    const { plaintext, hash } = mintOAuthToken();
+
+    (supabaseAdmin as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            is: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: "oauth-uuid",
+                    token_hash: hash,
+                    user_id: "did:privy:user-uuid",
+                    scopes: ["full"],
+                    profiles: {
+                      user_id: "did:privy:user-uuid",
+                      role: "dev",
+                      mcp_status: "pending_stake",
+                      wallet_pubkey: null,
+                      github_handle: "claudebot42",
+                    },
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const result = await authenticate(`Bearer ${plaintext}`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("Forbidden");
+      expect(result.error.message).toBe("Account is pending_stake, not active");
+    }
+  });
+
+  it("returns Forbidden when ghbo_live_ profile mcp_status is suspended", async () => {
+    const { mintOAuthToken } = await import("@ghbounty/shared");
+    const { plaintext, hash } = mintOAuthToken();
+
+    (supabaseAdmin as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            is: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: "oauth-uuid",
+                    token_hash: hash,
+                    user_id: "did:privy:user-uuid",
+                    scopes: ["full"],
+                    profiles: {
+                      user_id: "did:privy:user-uuid",
+                      role: "dev",
+                      mcp_status: "suspended",
+                      wallet_pubkey: null,
+                      github_handle: null,
+                    },
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const result = await authenticate(`Bearer ${plaintext}`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("Forbidden");
+      expect(result.error.message).toBe("Account is suspended, not active");
     }
   });
 
