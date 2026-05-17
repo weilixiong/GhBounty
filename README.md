@@ -82,6 +82,46 @@ The pubkey is hardcoded in `contracts/solana/programs/ghbounty_escrow/src/consta
 
 For mainnet rotation, see [GHB-179](https://linear.app/ghbounty/issue/GHB-179).
 
+## Database migrations
+
+**Schema changes go through Drizzle migrations — NEVER via direct paste in Supabase Studio.** Migrations live in `packages/db/drizzle/*.sql`, are committed to git, and are tracked in `packages/db/drizzle/meta/_journal.json`. Every schema change is auditable in git history and replayable across environments.
+
+### Workflow
+
+1. Edit `packages/db/src/schema.ts` (the Drizzle TypeScript schema).
+2. Generate the migration SQL:
+   ```bash
+   pnpm db:generate
+   ```
+   Drizzle Kit diffs your TS schema against the last snapshot, writes a new `NNNN_<slug>.sql` in `packages/db/drizzle/`, and updates `meta/_journal.json`. Review the SQL — if it doesn't match your intent, edit the schema and regenerate.
+3. Apply the migration to devnet:
+   ```bash
+   pnpm db:migrate
+   ```
+   Drizzle Kit applies any pending migrations in order, tracked in the DB's `__drizzle_migrations` table.
+4. Commit the SQL file, the updated `_journal.json`, and any new `*_snapshot.json` in `meta/`.
+5. The same `pnpm db:migrate` is what runs against prod when ready — no copy-paste, no drift between environments.
+
+### Configuration
+
+`pnpm db:migrate` needs `DATABASE_URL` pointing to the target Postgres. Local setup:
+
+```bash
+cp packages/db/.env.example packages/db/.env.local
+# Edit packages/db/.env.local — fill DATABASE_URL with the Supabase URI
+# (Project Settings → Database → Connection string → URI). Use the Session
+# pooler (port 5432), NOT the Transaction pooler (port 6543) — migrations
+# need multi-statement BEGIN/COMMIT blocks.
+```
+
+`.env.local` is gitignored. Never commit a real `DATABASE_URL`.
+
+### Rules
+
+- **Always use migrations** for schema changes (tables, columns, FKs, RLS policies, indexes). Never `CREATE TABLE` directly in Supabase Studio.
+- **Use Supabase Studio SQL Editor only** for ad-hoc data ops (debug queries, `TRUNCATE` of devnet test data, manual fixes) — never for structural changes.
+- **CI / Vercel never run migrations.** Migrations are applied manually by a human against the target environment. This is a deliberate human-approval gate for destructive operations.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
