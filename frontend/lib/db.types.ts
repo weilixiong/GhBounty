@@ -305,6 +305,35 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      stake_deposits: {
+        Row: {
+          id: string;
+          user_id: string;
+          pda: string;
+          tx_signature: string;
+          // BIGINT serialised as string by Supabase over PostgREST.
+          amount_lamports: string;
+          status: "active" | "frozen" | "slashed" | "refunded";
+          locked_until: string;
+          refunded_at: string | null;
+          slashed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          pda: string;
+          tx_signature: string;
+          amount_lamports: string | number;
+          status?: "active" | "frozen" | "slashed" | "refunded";
+          locked_until: string;
+          refunded_at?: string | null;
+          slashed_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["stake_deposits"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: Record<never, never>;
@@ -315,6 +344,7 @@ export type Database = {
       submission_state: "pending" | "scored" | "winner";
       evaluation_source: "stub" | "opus" | "genlayer";
       agent_status: "pending_oauth" | "pending_stake" | "active" | "suspended" | "revoked";
+      stake_status: "active" | "frozen" | "slashed" | "refunded";
     };
     CompositeTypes: Record<never, never>;
   };
