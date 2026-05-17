@@ -1,3 +1,53 @@
+@import "tailwindcss";
+
+/* ============================================================
+ * Tailwind v4 design tokens — generates utility classes like
+ * `bg-bg`, `text-accent`, `font-display`, `border-border-brand`.
+ *
+ * Brand color names mirror the legacy :root vars below (kept
+ * unprefixed for backwards compat with existing landing/app CSS).
+ * Tailwind tokens live under the `--color-*` namespace so the two
+ * systems coexist without collision.
+ * ============================================================ */
+@theme {
+  --color-bg: #05080A;
+  --color-bg-2: #0A0F12;
+  --color-bg-elev: #0B1014;
+  --color-surface: #0D1316;
+  --color-surface-2: #121A1E;
+  --color-border-brand: rgba(0, 229, 209, 0.12);
+  --color-border-strong: rgba(0, 229, 209, 0.28);
+  --color-text: #E8F4F3;
+  --color-text-dim: #8A9A9A;
+  --color-text-muted: #5C6A6A;
+  --color-accent: #00E5D1;
+  --color-accent-2: #2BD4E8;
+  --color-accent-deep: #008C7F;
+  --color-danger: #FF6B6B;
+
+  /* Fonts — declared here as fallbacks. next/font in app/layout.tsx
+   * sets hashed CSS variables (--font-display, --font-body, --font-mono)
+   * on <html> at runtime, which override these via cascade specificity. */
+  --font-display: 'Space Grotesk', 'Helvetica Neue', sans-serif;
+  --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+
+  /* shadcn semantic aliases — point at brand tokens so shadcn components
+   * inherit our palette without us editing each component. */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-bg);
+  --color-muted: var(--color-surface);
+  --color-muted-foreground: var(--color-text-dim);
+}
+
+/* ============================================================
+ * Legacy design system below — DO NOT REMOVE in this PR.
+ * Used by /app/*, /oauth/*, and the landing. Will be eroded
+ * gradually in subsequent component migrations.
+ * ============================================================ */
+
 /* GH Bounty — Landing styles */
 :root {
   --bg: #05080A;
