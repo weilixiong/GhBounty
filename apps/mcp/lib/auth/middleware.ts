@@ -4,7 +4,7 @@
 //   1. Parse `Authorization: Bearer <plaintext>` header.
 //   2. Dispatch by token prefix:
 //        ghbk_live_  → api_key path
-//        ghbo_live_  → OAuth path (not yet implemented)
+//        ghbo_live_  → oauth_token path (queries oauth_tokens)
 //   3. For api_key path:
 //      a. Extract first 22 chars (prefix) for indexed DB lookup.
 //      b. Fetch api_keys row joined to profiles (via api_keys.user_id FK).
