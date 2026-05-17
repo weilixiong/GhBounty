@@ -5,11 +5,8 @@
  *
  * Renders:
  *   1. Title.
- *   2. A persistent banner when `profile.mcp_status !== 'active'`
- *      (spec §5): the page still renders but the "Generate" button
- *      below is disabled.
- *   3. `<ApiKeysSection />` — list + modals.
- *   4. Placeholder for `<ConnectedAppsSection />` (Phase 4 / Task 30).
+ *   2. `<ApiKeysSection />` — list + modals.
+ *   3. `<ConnectedAppsSection />` — OAuth tokens.
  *
  * Profile resolution mirrors `StakeClient`: client-side Supabase
  * lookup over the Privy → Supabase JWT bridge. There is no working
@@ -17,7 +14,6 @@
  * in localStorage).
  */
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/lib/auth";
@@ -33,9 +29,8 @@ interface ProfileGate {
 
 /**
  * Read the caller's `profiles.mcp_status`. Returns nulls on any error
- * so the UI falls back to the "stake required" banner rather than
- * crashing — same defensive shape as the equivalent helper in
- * `StakeClient`.
+ * so the UI renders gracefully — same defensive shape as the equivalent
+ * helper in `StakeClient`.
  */
 function useProfileGate(userId: string | undefined): ProfileGate {
   const [state, setState] = useState<ProfileGate>({
@@ -83,8 +78,6 @@ export function CredentialsClient() {
     );
   }
 
-  const stakeRequired = profile.mcpStatus !== "active";
-
   return (
     <div className="dash">
       <section className="dash-hero">
@@ -98,34 +91,7 @@ export function CredentialsClient() {
         </div>
       </section>
 
-      {stakeRequired && (
-        <div
-          role="status"
-          style={{
-            padding: "12px 16px",
-            borderRadius: 10,
-            border: "1px solid rgba(255, 165, 0, 0.25)",
-            background: "rgba(255, 165, 0, 0.06)",
-            color: "var(--text)",
-            fontSize: 14,
-            lineHeight: 1.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <span>
-            Activá tu cuenta de MCP para gestionar credenciales.
-          </span>
-          <Link href="/app/stake" className="btn btn-primary btn-sm">
-            Stakear ahora
-          </Link>
-        </div>
-      )}
-
-      <ApiKeysSection disabled={stakeRequired} />
+      <ApiKeysSection />
 
       <ConnectedAppsSection />
     </div>

@@ -66,7 +66,7 @@ function shortDate(iso: string): string {
   });
 }
 
-export function ApiKeysSection({ disabled }: { disabled: boolean }) {
+export function ApiKeysSection() {
   const privy = usePrivy();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,13 +115,7 @@ export function ApiKeysSection({ disabled }: { disabled: boolean }) {
         <Button
           type="button"
           size="sm"
-          disabled={disabled}
           onClick={() => setShowGenerate(true)}
-          title={
-            disabled
-              ? "Activá tu cuenta de MCP primero para generar keys"
-              : undefined
-          }
         >
           + Generar nueva key
         </Button>

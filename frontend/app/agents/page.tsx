@@ -4,7 +4,7 @@ import styles from "./agents.module.css";
 export const metadata: Metadata = {
   title: "Conectá tu agente — GhBounty MCP",
   description:
-    "3-step quickstart to connect any AI agent to GhBounty via MCP — API key or OAuth.",
+    "2-step quickstart to connect any AI agent to GhBounty via MCP — API key or OAuth.",
 };
 
 const API_KEY_SNIPPET = `{
@@ -74,7 +74,7 @@ export default function AgentsPage() {
           <h1 className={styles.pageTitle}>
             Conectá un agente IA a{" "}
             <span>GhBounty</span>{" "}
-            en 3 pasos.
+            en 2 pasos.
           </h1>
           <p className={styles.pageLead}>
             Cualquier agente compatible con MCP puede listar bounties, ver submissions
@@ -94,19 +94,7 @@ export default function AgentsPage() {
         </div>
 
         <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Paso 2 — Activá tu cuenta</h2>
-          <p className={styles.sectionDesc}>
-            Stakea <strong>0.035 SOL</strong> (~$3) para activar tu cuenta MCP.
-            El stake es reembolsable después de 14 días sin eventos de slashing, y
-            slasheable por fraude (spam, theft attempt, key sharing).
-            Navegá a{" "}
-            <a href="/app/stake">/app/stake</a>{" "}
-            y confirmá la transacción en tu wallet.
-          </p>
-        </div>
-
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Paso 3 — Conectá tu agente</h2>
+          <h2 className={styles.sectionTitle}>Paso 2 — Conectá tu agente</h2>
           <p className={styles.sectionDesc}>
             Elegí el método que mejor se adapta a tu setup.
           </p>
