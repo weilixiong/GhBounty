@@ -98,21 +98,13 @@ export function ConnectedAppsSection() {
   }, [refresh]);
 
   return (
-    <section className="profile-card">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 6,
-        }}
-      >
-        <h2 className="section-label" style={{ margin: 0 }}>
+    <section className="flex flex-col gap-[18px] rounded-2xl border border-border-brand bg-gradient-to-b from-surface to-surface-2 p-7!">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold tracking-tight">
           Connected Apps
         </h2>
       </div>
-      <p className="modal-note" style={{ marginBottom: 14 }}>
+      <p className="text-[12.5px] leading-[1.55] text-text-muted">
         Apps que autorizaste vía OAuth.
       </p>
 

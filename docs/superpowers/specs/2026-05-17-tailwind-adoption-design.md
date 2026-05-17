@@ -206,6 +206,54 @@ Resolved during planning:
 3. **Font loading** — already wired via `next/font/google` in `app/layout.tsx` exposing CSS variables `--font-display`, `--font-body`, `--font-mono`. **Resolution:** `@theme` references these existing variables.
 4. **Pre-commit hook** — runs `pnpm typecheck && pnpm test` workspace-wide. Plan must keep both passing at every commit.
 
+## Migration convention — the `!` modifier
+
+Discovered during the first component migration (`ApiKeysSection`, `ConnectedAppsSection`).
+
+### The problem
+
+The legacy `globals.css` line 22 contains:
+
+```css
+* { box-sizing: border-box; margin: 0; padding: 0; }
+```
+
+This rule is **unlayered**. Per CSS Cascade L5, unlayered author styles beat any layered author styles — including all Tailwind utility classes, which live in `@layer utilities`. As a result, a `<section class="p-7">` renders with `padding: 0`, not 28px, because the universal reset wins the cascade despite having lower specificity.
+
+### Things we tried and rejected
+
+1. **Wrap legacy in `@layer legacy` declared first in the layer order.** Result: Tailwind's `@layer base` (Preflight) starts winning over legacy element styles, breaking layouts across the entire app (legacy `h1`, `body`, `ul` rules get overridden by Preflight resets).
+2. **Wrap legacy in `@layer legacy` declared between `components` and `utilities` (`theme, base, components, legacy, utilities`).** Same breakage symptom as above in our tests — Preflight in `base` still won over legacy in unexpected ways, likely because of how Tailwind v4 declares Preflight via multiple selectors.
+
+### The convention
+
+Until a component is fully extracted from the legacy CSS, **use Tailwind's `!` modifier on properties that fight the universal reset**:
+
+```tsx
+// Before
+<section className="profile-card">
+
+// After (during coexistence)
+<section className="flex flex-col gap-[18px] rounded-2xl border border-border-brand bg-gradient-to-b from-surface to-surface-2 p-7!">
+```
+
+Tailwind v4 `!` is a **suffix**: `p-7!` generates `padding: 1.75rem !important`. The `!important` beats unlayered author rules without changing the cascade structure.
+
+### When `!` is needed vs not
+
+| Property | Fights universal reset? | Needs `!`? |
+|---|---|---|
+| `padding`, `padding-*` | Yes (`* { padding: 0 }`) | **Yes** — `p-7!`, `px-4!` |
+| `margin`, `margin-*` | Yes (`* { margin: 0 }`) | **Yes** — `m-4!`, `mb-2!` |
+| `gap`, `flex`, `grid`, `display` | No | No |
+| `background`, `color`, `border-*` | No | No |
+| `border-radius`, `font-*`, `text-*` | No | No |
+| `box-sizing` | Yes (`* { box-sizing: border-box }`) | Usually irrelevant — Tailwind utilities don't typically set this |
+
+### When `!` can be removed
+
+Once a component is 100% migrated and no longer renders inside the legacy CSS scope (or once legacy is fully deleted), the `!` suffix should be removed. Treat `!` as a coexistence-only tool, not a permanent style.
+
 ## Decisions summary
 
 | Axis | Decision |
