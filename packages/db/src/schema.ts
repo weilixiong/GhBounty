@@ -204,6 +204,25 @@ export const profiles = pgTable("profiles", {
     .notNull(),
 });
 
+/* --- Agent delegations: server-side signing consent ------------ */
+export const agentDelegations = pgTable("agent_delegations", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => profiles.userId, { onDelete: "cascade" }),
+  walletPubkey: text("wallet_pubkey").notNull(),
+  chainType: text("chain_type").notNull(),
+  delegatedAt: timestamp("delegated_at", { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+});
+
 /* --- Companies: populated when profiles.role = 'company' -------- */
 export const companies = pgTable("companies", {
   userId: text("user_id")
