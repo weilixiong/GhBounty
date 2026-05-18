@@ -64,21 +64,38 @@ const baseProfile = {
 };
 
 function buildSupabase(
-  opts: { existingSubmission?: boolean; bountyState?: string } = {}
+  opts: {
+    existingSubmission?: boolean;
+    bountyState?: string;
+    noDelegation?: boolean;
+    noBounty?: boolean;
+    onAgentDelegationUpdate?: (...args: unknown[]) => void;
+  } = {}
 ) {
   return {
     from: (table: string) => {
       if (table === "agent_delegations") {
+        const updateFn = vi.fn(() => ({
+          eq: () => Promise.resolve({ error: null }),
+        }));
+        if (opts.onAgentDelegationUpdate) {
+          updateFn.mockImplementation((...args: unknown[]) => {
+            opts.onAgentDelegationUpdate!(...args);
+            return { eq: () => Promise.resolve({ error: null }) };
+          });
+        }
         return {
           select: () => ({
             eq: () => ({
               maybeSingle: () =>
-                Promise.resolve({ data: { revoked_at: null }, error: null }),
+                Promise.resolve(
+                  opts.noDelegation
+                    ? { data: null, error: null }
+                    : { data: { revoked_at: null }, error: null }
+                ),
             }),
           }),
-          update: () => ({
-            eq: () => Promise.resolve({ error: null }),
-          }),
+          update: updateFn,
         };
       }
       if (table === "issues") {
@@ -86,18 +103,22 @@ function buildSupabase(
           select: () => ({
             eq: () => ({
               maybeSingle: () =>
-                Promise.resolve({
-                  data: {
-                    id: "bounty-1",
-                    pda: "BountyPda1",
-                    chain_id: "solana-devnet",
-                    github_issue_url:
-                      "https://github.com/acme/proj/issues/42",
-                    state: opts.bountyState ?? "open",
-                    submission_count: 0,
-                  },
-                  error: null,
-                }),
+                Promise.resolve(
+                  opts.noBounty
+                    ? { data: null, error: null }
+                    : {
+                        data: {
+                          id: "bounty-1",
+                          pda: "BountyPda1",
+                          chain_id: "solana-devnet",
+                          github_issue_url:
+                            "https://github.com/acme/proj/issues/42",
+                          state: opts.bountyState ?? "open",
+                          submission_count: 0,
+                        },
+                        error: null,
+                      }
+                ),
             }),
           }),
         };
@@ -332,5 +353,79 @@ describe("submissions.create — happy path", () => {
     });
 
     expect((result as any).error?.code).toBe("InvalidInput");
+  });
+
+  it("returns Forbidden when mcp_status is not active", async () => {
+    (authenticate as any).mockResolvedValue({
+      ok: true,
+      profile: { ...baseProfile, mcp_status: "suspended" },
+      credentialId: "k1",
+      credentialKind: "api_key",
+    });
+
+    const result = await handleSubmissionsCreate({
+      authorization: "Bearer x",
+      bounty_id: "00000000-0000-0000-0000-000000000001",
+      pr_url: "https://github.com/acme/proj/pull/1",
+    });
+
+    expect((result as any).error?.code).toBe("Forbidden");
+    expect(submitSponsoredTx).not.toHaveBeenCalled();
+  });
+
+  it("returns Forbidden when user has no active delegation", async () => {
+    (supabaseAdmin as any).mockReturnValue(buildSupabase({ noDelegation: true }));
+
+    const result = await handleSubmissionsCreate({
+      authorization: "Bearer x",
+      bounty_id: "00000000-0000-0000-0000-000000000001",
+      pr_url: "https://github.com/acme/proj/pull/1",
+    });
+
+    expect((result as any).error?.code).toBe("Forbidden");
+    expect(submitSponsoredTx).not.toHaveBeenCalled();
+  });
+
+  it("returns NotFound when bounty does not exist", async () => {
+    (supabaseAdmin as any).mockReturnValue(buildSupabase({ noBounty: true }));
+
+    const result = await handleSubmissionsCreate({
+      authorization: "Bearer x",
+      bounty_id: "00000000-0000-0000-0000-000000000001",
+      pr_url: "https://github.com/acme/proj/pull/1",
+    });
+
+    expect((result as any).error?.code).toBe("NotFound");
+    expect(submitSponsoredTx).not.toHaveBeenCalled();
+  });
+
+  it("returns Forbidden and updates agent_delegations when Privy returns delegation_revoked", async () => {
+    const updateCalls: unknown[][] = [];
+    (supabaseAdmin as any).mockReturnValue(
+      buildSupabase({
+        onAgentDelegationUpdate: (...args: unknown[]) => {
+          updateCalls.push(args);
+        },
+      })
+    );
+
+    (signSolanaTransaction as any).mockResolvedValue({
+      ok: false,
+      reason: "delegation_revoked",
+    });
+
+    const result = await handleSubmissionsCreate({
+      authorization: "Bearer x",
+      bounty_id: "00000000-0000-0000-0000-000000000001",
+      pr_url: "https://github.com/acme/proj/pull/1",
+    });
+
+    expect((result as any).error?.code).toBe("Forbidden");
+    expect(submitSponsoredTx).not.toHaveBeenCalled();
+    // Verify the DB update on agent_delegations was called with revoked_at
+    expect(updateCalls.length).toBe(1);
+    expect((updateCalls[0][0] as any)).toMatchObject({
+      revoked_at: expect.any(String),
+    });
   });
 });
