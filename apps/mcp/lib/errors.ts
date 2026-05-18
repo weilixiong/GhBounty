@@ -14,6 +14,7 @@ export type McpErrorCode =
   | "NotFound"
   | "Conflict"
   | "RpcError"
+  | "ServiceUnavailable"
   | "InternalError"
   | "InvalidInput";
 
