@@ -2222,7 +2222,25 @@ git commit -m "docs(runbooks): add Sprint B smoke test runbook — GHB-187"
 
 ---
 
-## Task 16: Final workspace check + push for PR
+## Task 16: DB migrate (manual gate) + final workspace check + push for PR
+
+> **🚨 Critical:** the migration `0026_agent_delegations.sql` was committed in Task 1 but **not applied**. Before opening the PR, Gaston must run `pnpm db:migrate` against devnet Supabase. Without this, none of Sprint B's code works at runtime — `submissions.create` and the delegation guard will both fail with "relation agent_delegations does not exist". This step is intentional human-gated per `CLAUDE.md`.
+
+- [ ] **Step 0: Gaston applies the migration to devnet**
+
+```bash
+# Gaston runs locally with DATABASE_URL pointing at devnet Supabase
+pnpm db:migrate
+```
+
+Verify in Supabase Studio:
+- Table `agent_delegations` exists with the expected columns
+- RLS is enabled
+- Policy `agent_delegations_own_read` is present
+
+If the migration fails, do NOT proceed to deploy. Fix the migration on the feature branch and re-apply.
+
+
 
 - [ ] **Step 1: Run all checks**
 
