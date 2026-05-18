@@ -11,12 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
     "@ghbounty/db": "workspace:^",
     "@ghbounty/sdk": "workspace:^",
     "@ghbounty/shared": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@privy-io/node": "^0.18.0",
     "@solana/kit": "^6.9.0",
+    "@solana/web3.js": "^1.95.0",
     "@supabase/supabase-js": "^2.104.1",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
