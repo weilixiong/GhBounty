@@ -49,3 +49,16 @@ This is a **pnpm workspace**, not npm. Use `pnpm` and `pnpm --filter @ghbounty/<
 ## Linear issues
 
 Issues are tracked in Linear. The repo branch naming convention is `<github-handle>/<issue-slug>` (e.g. `gastonfoncea09/ghb-188-mcp-frontend-onboarding`). Commit messages should reference the Linear issue (`— GHB-188`).
+
+### Linear-tracked work always goes on its own branch
+
+**Never commit directly to `main`** (or any base branch) when implementing a Linear issue. This applies to **everything** tied to the issue: spec docs, implementation plans, code, migrations, tests, runbooks. All of it lives on the feature branch and reaches `main` only via a merged PR.
+
+Workflow when starting a Linear issue:
+
+1. Move the Linear issue to **In Progress** (and re-assign to yourself if needed).
+2. Create the feature branch using the Linear-provided `gitBranchName` (Linear shows it on the issue page). `git checkout -b <branch>`.
+3. All commits for the issue go on that branch — including the spec/plan docs in `docs/superpowers/`.
+4. Open a PR when ready. Merge only after review + CI green.
+
+The only commits that may land on `main` directly are repo-wide chores not tied to a Linear issue (workflow docs, root README typos, etc.) — and even then, prefer a branch + PR when in doubt.
