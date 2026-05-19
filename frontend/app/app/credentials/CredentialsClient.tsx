@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/client";
 
+import { AgentDelegationCard } from "./AgentDelegationCard";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
 
@@ -94,6 +95,8 @@ export function CredentialsClient() {
       <ApiKeysSection />
 
       <ConnectedAppsSection />
+
+      <AgentDelegationCard />
     </div>
   );
 }
