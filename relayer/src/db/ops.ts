@@ -4,6 +4,7 @@ import {
   chainRegistry,
   evaluations,
   issues,
+  profiles,
   submissions,
   type Db,
 } from "@ghbounty/db";
@@ -646,6 +647,47 @@ export async function getSubmissionIdByPda(
     .where(sql`${submissions.pda} = ${submissionPda}`)
     .limit(1);
   return rows[0]?.id ?? null;
+}
+
+/* ---------------------------------------------------------------- */
+/* GHB-182: PR ownership defense-in-depth                           */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Return the GitHub handle of the solver (via profiles.wallet_pubkey)
+ * and the repo URL parsed from the bounty's github_issue_url.
+ *
+ * JOIN shape:
+ *   issues.pda = issuePda  → issues.github_issue_url
+ *   profiles.wallet_pubkey = solverWallet → profiles.github_handle
+ *
+ * Returns null when either side is missing (legacy row without a
+ * linked GitHub account, or the issue has no off-chain mirror yet).
+ * The handler must treat null as "skip ownership check" — a missing
+ * github_handle is not a reason to auto_reject.
+ */
+export async function getSolverOwnershipContext(
+  db: Db,
+  issuePda: string,
+  solverWallet: string,
+): Promise<{ githubHandle: string; githubIssueUrl: string } | null> {
+  const rows = await db.execute(sql`
+    SELECT
+      p.github_handle AS github_handle,
+      i.github_issue_url AS github_issue_url
+    FROM profiles p
+    CROSS JOIN issues i
+    WHERE p.wallet_pubkey = ${solverWallet}
+      AND i.pda = ${issuePda}
+    LIMIT 1
+  `);
+  type Row = { github_handle: string | null; github_issue_url: string | null };
+  const first = rowsOf<Row>(rows)[0];
+  if (!first || !first.github_handle || !first.github_issue_url) return null;
+  return {
+    githubHandle: first.github_handle,
+    githubIssueUrl: first.github_issue_url,
+  };
 }
 
 /**

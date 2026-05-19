@@ -1197,3 +1197,270 @@ describe("GHB-184: cap de submissions", () => {
     expect(executes.some((e) => /WITH bumped AS/i.test(String(e.payload)))).toBe(false);
   });
 });
+
+/* ──────────────────────────────────────────────────────────────────────
+ * GHB-182: relayer-side PR ownership check (defense-in-depth).
+ *
+ * The check fires after the bounty-open pre-check but before the
+ * sandbox + Opus scoring. We verify that:
+ *   - Definitive failures → auto_rejected, Opus NOT called.
+ *   - Transient failures → early return (skip this poll cycle), not rejected.
+ *   - Missing DB context (no github_handle) → skipped, Opus IS called.
+ *   - Ownership passes → Opus IS called, normal flow.
+ * ────────────────────────────────────────────────────────────────────── */
+describe("GHB-182: PR ownership check", () => {
+  /**
+   * The ownership lookup fires via db.execute(sql`SELECT p.github_handle ...`).
+   * We route it by matching the SQL text. The route must come BEFORE the
+   * defaults in fakeDb so it takes precedence.
+   */
+  function ownershipRoute(
+    rows: Array<{ github_handle: string | null; github_issue_url: string | null }>,
+  ) {
+    return {
+      match: /p\.github_handle/i,
+      rows,
+    };
+  }
+
+  /** A verifyOwnership mock that returns a definitive failure. */
+  function rejectOwnership(reason: "author_mismatch" | "repo_mismatch" | "pr_not_found" | "invalid_url") {
+    return vi.fn(async () => ({ ok: false as const, reason }));
+  }
+
+  /** A verifyOwnership mock that returns a transient failure. */
+  function transientOwnership(reason: "rate_limited" | "upstream_error") {
+    return vi.fn(async () => ({ ok: false as const, reason }));
+  }
+
+  /** A verifyOwnership mock that passes. */
+  function passOwnership() {
+    return vi.fn(async () => ({ ok: true as const }));
+  }
+
+  /** DB state with the ownership context route pre-configured. */
+  function dbWithOwnership(
+    githubHandle: string | null = "octocat",
+    issueUrl: string | null = "https://github.com/owner/repo/issues/1",
+  ) {
+    return fakeDb({
+      executeRoutes: [ownershipRoute([{ github_handle: githubHandle, github_issue_url: issueUrl }])],
+    });
+  }
+
+  /** DB state where the ownership context is missing (no row). */
+  function dbWithoutOwnership() {
+    return fakeDb({
+      executeRoutes: [ownershipRoute([])],
+    });
+  }
+
+  test("author_mismatch → auto_rejected, Opus NOT called", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = rejectOwnership("author_mismatch");
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+    expect(r.outcome).toBe("auto_rejected");
+    expect(r.txHash).toBe("ownership_check_failed");
+
+    // markAutoRejected was called (drizzle update with state=auto_rejected).
+    const updates = state.calls.filter((c) => c.kind === "update");
+    expect(
+      updates.some((u) => {
+        const patch = (u.payload as { patch: { state?: string } }).patch;
+        return patch?.state === "auto_rejected";
+      }),
+    ).toBe(true);
+  });
+
+  test("repo_mismatch → auto_rejected, Opus NOT called", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = rejectOwnership("repo_mismatch");
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+    expect(r.outcome).toBe("auto_rejected");
+  });
+
+  test("pr_not_found → auto_rejected, Opus NOT called", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = rejectOwnership("pr_not_found");
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+    expect(r.outcome).toBe("auto_rejected");
+  });
+
+  test("rate_limited → skip this cycle (early return, NOT auto_rejected)", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = transientOwnership("rate_limited");
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+    expect(r.txHash).toBe("ownership_check_skipped");
+
+    // Must NOT have marked the submission auto_rejected.
+    const updates = state.calls.filter((c) => c.kind === "update");
+    expect(
+      updates.some((u) => {
+        const patch = (u.payload as { patch: { state?: string } }).patch;
+        return patch?.state === "auto_rejected";
+      }),
+    ).toBe(false);
+  });
+
+  test("upstream_error → skip this cycle (early return, NOT auto_rejected)", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = transientOwnership("upstream_error");
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(analyze).not.toHaveBeenCalled();
+    expect(setScore).not.toHaveBeenCalled();
+    expect(r.txHash).toBe("ownership_check_skipped");
+  });
+
+  test("no github_handle in DB → check skipped, Opus IS called", async () => {
+    const state = dbWithoutOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = vi.fn();
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    // verifyOwnership should NOT have been called — no context to check against.
+    expect(verifyOwnership).not.toHaveBeenCalled();
+    expect(analyze).toHaveBeenCalledOnce();
+    expect(r.outcome).toBe("pass");
+  });
+
+  test("ownership passes → normal scoring flow, Opus IS called", async () => {
+    const state = dbWithOwnership();
+    const db = buildDrizzleProxy(state);
+    const { client, setScore } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = passOwnership();
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(verifyOwnership).toHaveBeenCalledOnce();
+    expect(analyze).toHaveBeenCalledOnce();
+    expect(setScore).toHaveBeenCalledOnce();
+    expect(r.outcome).toBe("pass");
+    expect(r.score).toBe(7);
+  });
+
+  test("no DB → ownership check skipped entirely, Opus IS called", async () => {
+    const { client } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = vi.fn();
+
+    const r = await handleSubmission(buildSub(), {
+      ...baseDeps,
+      db: null,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+    });
+
+    expect(verifyOwnership).not.toHaveBeenCalled();
+    expect(analyze).toHaveBeenCalledOnce();
+    expect(r.outcome).toBe("pass");
+  });
+
+  test("verifyOwnership receives correct handle and parsed repo URL", async () => {
+    const issueUrl = "https://github.com/myorg/myrepo/issues/42";
+    const state = fakeDb({
+      executeRoutes: [
+        ownershipRoute([{ github_handle: "jsmith", github_issue_url: issueUrl }]),
+      ],
+    });
+    const db = buildDrizzleProxy(state);
+    const { client } = buildScorer();
+    const analyze = vi.fn(async () => opusResult);
+    const verifyOwnership = passOwnership();
+
+    await handleSubmission(buildSub("https://github.com/myorg/myrepo/pull/10"), {
+      ...baseDeps,
+      db: db as never,
+      scorer: client,
+      analyze,
+      verifyOwnership,
+      githubToken: "ghp_test_token",
+    });
+
+    expect(verifyOwnership).toHaveBeenCalledOnce();
+    const args = verifyOwnership.mock.calls[0]![0];
+    expect(args.expectedGithubHandle).toBe("jsmith");
+    expect(args.expectedRepoUrl).toBe("https://github.com/myorg/myrepo");
+    expect(args.prUrl).toBe("https://github.com/myorg/myrepo/pull/10");
+    expect(args.token).toBe("ghp_test_token");
+  });
+});

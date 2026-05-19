@@ -50,6 +50,13 @@
       "when": 1779057697000,
       "tag": "0025_bypass_stake",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779062400000,
+      "tag": "0026_agent_delegations",
+      "breakpoints": true
     }
   ]
 }

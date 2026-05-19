@@ -1,4 +1,5 @@
 import { type Db } from "@ghbounty/db";
+import { verifyPrOwnership, type VerifyPrOwnershipResult } from "@ghbounty/shared";
 
 import { analyzeSubmission, type AnalyzeResult } from "./analyzer.js";
 import { type GenLayerConfig, type SandboxConfig } from "./config.js";
@@ -8,6 +9,7 @@ import {
   getRejectThreshold,
   getSubmissionIdByPda,
   getSubmittedByUserId,
+  getSolverOwnershipContext,
   insertEvaluation,
   insertNotification,
   isBountyOpenForSubmissions,
@@ -69,6 +71,17 @@ export interface SubmissionHandlerDeps {
    * machines. Must match the shape of the real `runSandboxedTests`.
    */
   runSandbox?: typeof runSandboxedTests;
+  /**
+   * For tests: inject the PR ownership verifier so we don't hit GitHub.
+   * Must match the shape of `verifyPrOwnership` from `@ghbounty/shared`.
+   */
+  verifyOwnership?: typeof verifyPrOwnership;
+  /**
+   * GitHub PAT for the relayer's ownership check calls. Set via
+   * GITHUB_TOKEN env var. Optional — public repos work without it but
+   * at a lower rate limit.
+   */
+  githubToken?: string | null;
 }
 
 export interface HandleSubmissionResult {
@@ -145,6 +158,35 @@ export async function handleSubmission(
         txHash: "bounty_closed",
       };
     }
+  }
+
+  // GHB-182: defense-in-depth — re-verify PR ownership before spending an
+  // Opus call. The MCP server already ran this check at submit time, but the
+  // relayer is the financial gate (it writes the on-chain score) so a second
+  // check here prevents a compromised or bypassed MCP path from causing a
+  // false payout.
+  if (deps.db) {
+    const ownershipResult = await checkPrOwnership(sub, deps);
+    if (ownershipResult === "transient_failure") {
+      // GitHub is flaky — skip this poll cycle, the watcher will retry.
+      return {
+        score: 0,
+        outcome: "pass",
+        threshold,
+        source: "stub",
+        txHash: "ownership_check_skipped",
+      };
+    }
+    if (ownershipResult === "rejected") {
+      return {
+        score: 0,
+        outcome: "auto_rejected",
+        threshold,
+        source: "stub",
+        txHash: "ownership_check_failed",
+      };
+    }
+    // ownershipResult === "ok" or "skipped" → proceed to scoring
   }
 
   // GHB-73: spin up the sandbox + run the PR's tests BEFORE asking Sonnet
@@ -618,6 +660,112 @@ function combineOutputTails(stdout: string, stderr: string): string | null {
   if (!err) return out;
   if (!out) return err;
   return `--- stdout (tail) ---\n${out}\n--- stderr (tail) ---\n${err}`;
+}
+
+// ── GHB-182: PR ownership defense-in-depth ────────────────────────
+
+/**
+ * Transient failures (GitHub rate-limited or unreachable) → caller skips
+ * this poll cycle and the watcher retries on the next one.
+ * Definitive failures (mismatch, not found, invalid URL) → auto_rejected.
+ * "ok" / "skipped" (no ownership context in DB) → proceed to scoring.
+ */
+type OwnershipCheckOutcome = "ok" | "skipped" | "rejected" | "transient_failure";
+
+const TRANSIENT_REASONS = new Set<string>(["rate_limited", "upstream_error"]);
+
+/**
+ * Run the ownership check against GitHub. Returns "skipped" when the DB
+ * doesn't have enough context (no github_handle for the solver, or no
+ * off-chain issue row yet) — that is not a reason to auto_reject.
+ */
+async function checkPrOwnership(
+  sub: DecodedSubmission,
+  deps: SubmissionHandlerDeps,
+): Promise<OwnershipCheckOutcome> {
+  if (!deps.db) return "skipped";
+
+  let ownershipCtx: { githubHandle: string; githubIssueUrl: string } | null;
+  try {
+    ownershipCtx = await getSolverOwnershipContext(
+      deps.db,
+      sub.bounty.toBase58(),
+      sub.solver.toBase58(),
+    );
+  } catch (err) {
+    // DB error is transient — don't permanently reject.
+    log.warn("ownership_check: db lookup failed", {
+      submission: sub.pda.toBase58(),
+      err: String(err),
+    });
+    return "transient_failure";
+  }
+
+  if (!ownershipCtx) {
+    // No github_handle or no off-chain issue row: can't check → skip, not reject.
+    log.debug("ownership_check: skipped (no context in db)", {
+      submission: sub.pda.toBase58(),
+      solver: sub.solver.toBase58(),
+    });
+    return "skipped";
+  }
+
+  const bountyRepoUrl = parseIssueRepoUrl(ownershipCtx.githubIssueUrl);
+  if (!bountyRepoUrl) {
+    log.warn("ownership_check: could not parse repo URL from issue", {
+      submission: sub.pda.toBase58(),
+      githubIssueUrl: ownershipCtx.githubIssueUrl,
+    });
+    // Treat unparseable bounty URL as a data error — not the solver's fault.
+    return "skipped";
+  }
+
+  const verify = deps.verifyOwnership ?? verifyPrOwnership;
+  let result: VerifyPrOwnershipResult;
+  try {
+    result = await verify({
+      prUrl: sub.prUrl,
+      expectedGithubHandle: ownershipCtx.githubHandle,
+      expectedRepoUrl: bountyRepoUrl,
+      token: deps.githubToken ?? undefined,
+    });
+  } catch (err) {
+    // verifyPrOwnership is documented as non-throwing but be defensive.
+    log.warn("ownership_check: verifier threw", {
+      submission: sub.pda.toBase58(),
+      err: String(err),
+    });
+    return "transient_failure";
+  }
+
+  if (result.ok) return "ok";
+
+  if (TRANSIENT_REASONS.has(result.reason)) {
+    log.warn("ownership_check: transient failure — will retry next poll", {
+      submission: sub.pda.toBase58(),
+      reason: result.reason,
+    });
+    return "transient_failure";
+  }
+
+  // Definitive failure — mark auto_rejected and skip scoring.
+  log.warn("ownership_check: rejected", {
+    submission: sub.pda.toBase58(),
+    reason: result.reason,
+    prUrl: sub.prUrl,
+  });
+  await markAutoRejected(deps.db, sub.pda.toBase58());
+  return "rejected";
+}
+
+/**
+ * Extract `https://github.com/owner/repo` from a GitHub issue URL.
+ * Returns null if the URL doesn't match the expected shape.
+ * Mirrors the same helper in `apps/mcp/lib/tools/submissions/create.ts`.
+ */
+function parseIssueRepoUrl(githubIssueUrl: string): string | null {
+  const m = githubIssueUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\//);
+  return m ? `https://github.com/${m[1]}/${m[2]}` : null;
 }
 
 /**

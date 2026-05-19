@@ -106,6 +106,10 @@ async function runOnce(): Promise<never> {
       // skips the spawn when token or app are null and falls back to
       // the "no test results available" prompt path.
       sandbox: cfg.sandbox,
+      // GHB-182: GitHub token for PR ownership check. Already loaded
+      // above for logging; pass through here so verifyPrOwnership can
+      // use it for higher rate limits.
+      githubToken: ghToken || null,
     }).then(() => undefined);
 
   await processBacklog(connection, client.getProgram(), handler);
