@@ -1,7 +1,7 @@
 import type { PrivyClient } from "@privy-io/node";
 
 export type SignInput = {
-  walletId: string;
+  walletAddress: string; // The Solana on-chain pubkey (base58).
   unsignedTx: Uint8Array;
 };
 
@@ -14,16 +14,37 @@ export type SignResult =
  * delegated their wallet to our server. Returns a partially-signed
  * transaction (only the user's signature slot filled) — the caller
  * still needs to get a fee-payer signature via the gas station.
+ *
+ * Privy's signTransaction API takes the internal wallet `id`, not the
+ * on-chain pubkey. We resolve the address → id via getWalletByAddress
+ * before signing.
  */
 export async function signSolanaTransaction(
   client: PrivyClient,
   input: SignInput
 ): Promise<SignResult> {
+  let walletId: string;
+  try {
+    // Look up the Privy internal wallet ID by on-chain address.
+    // Privy's signTransaction API takes the internal id, not the pubkey.
+    const wallet = await (client.wallets as any).getWalletByAddress({
+      address: input.walletAddress,
+    });
+    walletId = wallet.id;
+  } catch (err: any) {
+    if (err?.status === 404) {
+      // Either the user never delegated, or revoked off-band via Privy dashboard.
+      // From our perspective the signing capability is gone — treat as revoked.
+      return { ok: false, reason: "delegation_revoked" };
+    }
+    return { ok: false, reason: "upstream_error" };
+  }
+
   try {
     const response = await client
       .wallets()
       .solana()
-      .signTransaction(input.walletId, {
+      .signTransaction(walletId, {
         transaction: input.unsignedTx,
       });
 

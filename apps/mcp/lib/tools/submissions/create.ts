@@ -182,14 +182,11 @@ export async function handleSubmissionsCreate(raw: unknown) {
 
   // --- Privy delegated signing (Task 6) ---
   //
-  // ASSUMPTION: `walletId === wallet_pubkey` (Solana base58 address).
-  // If Privy's internal walletId differs from the on-chain address, the
-  // consent flow (Task 12 / GHB-187) must persist Privy's returned
-  // walletId at delegation time and we read it here. Document this in the
-  // PR so the Task 12 implementor is aware.
+  // We pass the on-chain pubkey as `walletAddress`. The signer resolves it
+  // to Privy's internal wallet id via getWalletByAddress before signing.
   const privyClient = getPrivyServerClient();
   const signed = await signSolanaTransaction(privyClient, {
-    walletId: auth.profile.wallet_pubkey,
+    walletAddress: auth.profile.wallet_pubkey,
     unsignedTx: built.unsignedTx,
   });
 
