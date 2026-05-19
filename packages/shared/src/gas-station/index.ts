@@ -16,8 +16,8 @@
  * Adding EVM (GHB-178) follows the same pattern.
  */
 
-import type { ChainId } from "../chains";
-import { GasStation, GasStationError } from "./types";
+import type { ChainId } from "../chains.js";
+import { GasStation, GasStationError } from "./types.js";
 
 export function getGasStation(chainId: ChainId): GasStation {
   switch (chainId) {
@@ -49,9 +49,9 @@ export type {
   SponsorPayload,
   SolanaSponsorPayload,
   GasStationErrorCode,
-} from "./types";
+} from "./types.js";
 
-export { GasStationError } from "./types";
+export { GasStationError } from "./types.js";
 
 // GHB-174 — Solana implementation. Exposed at the barrel level so
 // the route handler in GHB-175 can `new SolanaGasStation({...})`
@@ -62,12 +62,12 @@ export {
   loadGasStationKeypair,
   loadTreasuryKeypair,
   makeConnectionRpcSubmitter,
-} from "./solana";
+} from "./solana.js";
 export type {
   SolanaGasStationDeps,
   SolanaRpcSubmitter,
   SponsorLogEntry,
-} from "./solana";
+} from "./solana.js";
 
 // GHB-173 — validator (used by SolanaGasStation but also exported
 // for tests / ops scripts that want to dry-run the rules).
@@ -78,9 +78,9 @@ export {
   MAX_FEE_LAMPORTS,
   MAX_TOPUP_LAMPORTS,
   MAX_REVIEW_FEE_LAMPORTS,
-} from "./solana-validator";
+} from "./solana-validator.js";
 export type {
   ValidateOptions,
   ValidatorResult,
   ValidatorRejectionCode,
-} from "./solana-validator";
+} from "./solana-validator.js";

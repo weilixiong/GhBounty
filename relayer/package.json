@@ -16,6 +16,7 @@
     "@coral-xyz/anchor": "^0.30.1",
     "@ghbounty/db": "workspace:^",
     "@ghbounty/diff-filter": "workspace:^",
+    "@ghbounty/shared": "workspace:^",
     "@solana/web3.js": "^1.95.0",
     "bn.js": "^5.2.1",
     "dotenv": "^17.4.2",
