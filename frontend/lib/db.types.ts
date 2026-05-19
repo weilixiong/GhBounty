@@ -334,6 +334,29 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["stake_deposits"]["Insert"]>;
         Relationships: [];
       };
+      // GHB-187: server-side signing consent for MCP submit_pr flow.
+      agent_delegations: {
+        Row: {
+          user_id: string;
+          wallet_pubkey: string;
+          chain_type: string;
+          delegated_at: string;
+          revoked_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          wallet_pubkey: string;
+          chain_type?: string;
+          delegated_at?: string;
+          revoked_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["agent_delegations"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: Record<never, never>;
