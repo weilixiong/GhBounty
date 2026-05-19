@@ -2,7 +2,14 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // Align with @ghbounty/shared (GHB-180): the shared package source
+    // uses extensionless relative imports so Next.js/Turbopack can
+    // consume it. Since this package now depends on @ghbounty/shared
+    // (GHB-187), it must read those imports under the same resolution.
+    // tsx handles both modes the same way at runtime.
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
