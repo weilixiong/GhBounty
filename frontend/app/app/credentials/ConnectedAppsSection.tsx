@@ -91,7 +91,10 @@ export function ConnectedAppsSection() {
     } finally {
       setLoading(false);
     }
-  }, [privy]);
+    // See ApiKeysSection — same fix: `privy` identity changes on every render
+    // and caused an infinite render loop. Capture via closure on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     void refresh();

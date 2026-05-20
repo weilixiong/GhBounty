@@ -10,31 +10,34 @@ export type SignResult =
   | { ok: false; reason: "delegation_revoked" | "upstream_error" };
 
 /**
- * Ask Privy to sign a Solana transaction on behalf of a user who has
- * delegated their wallet to our server. Returns a partially-signed
- * transaction (only the user's signature slot filled) — the caller
- * still needs to get a fee-payer signature via the gas station.
+ * Ask Privy to sign a Solana transaction on behalf of a user whose embedded
+ * wallet has our server's signer attached via `addSigners` in the frontend.
+ * Returns a partially-signed transaction (only the user's signature slot
+ * filled) — the caller still needs to get a fee-payer signature via the
+ * gas station.
  *
- * Privy's signTransaction API takes the internal wallet `id`, not the
- * on-chain pubkey. We resolve the address → id via getWalletByAddress
- * before signing.
+ * The request is authorized by passing the server's PKCS8 private key in
+ * `authorization_context.authorization_private_keys`. Privy verifies it
+ * against the public key registered under the key quorum the user
+ * authorized in `/app/credentials`.
  */
 export async function signSolanaTransaction(
   client: PrivyClient,
   input: SignInput
 ): Promise<SignResult> {
+  const authorizationPrivateKey = process.env.PRIVY_SIGNER_PRIVATE_KEY;
+  if (!authorizationPrivateKey) {
+    return { ok: false, reason: "upstream_error" };
+  }
+
   let walletId: string;
   try {
-    // Look up the Privy internal wallet ID by on-chain address.
-    // Privy's signTransaction API takes the internal id, not the pubkey.
     const wallet = await (client.wallets as any).getWalletByAddress({
       address: input.walletAddress,
     });
     walletId = wallet.id;
   } catch (err: any) {
     if (err?.status === 404) {
-      // Either the user never delegated, or revoked off-band via Privy dashboard.
-      // From our perspective the signing capability is gone — treat as revoked.
       return { ok: false, reason: "delegation_revoked" };
     }
     return { ok: false, reason: "upstream_error" };
@@ -46,9 +49,11 @@ export async function signSolanaTransaction(
       .solana()
       .signTransaction(walletId, {
         transaction: input.unsignedTx,
+        authorization_context: {
+          authorization_private_keys: [authorizationPrivateKey],
+        },
       });
 
-    // Privy returns base64 in snake_case. Decode to bytes for callers.
     const signedTx = Buffer.from(response.signed_transaction, "base64");
     return { ok: true, signedTx: new Uint8Array(signedTx) };
   } catch (err: any) {
