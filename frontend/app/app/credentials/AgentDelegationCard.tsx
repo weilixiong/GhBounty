@@ -8,21 +8,22 @@
  * delegation API.
  *
  * Hook notes (v3.22.x):
- *   - `useHeadlessDelegatedActions` — exists; provides `delegateWallet` and
- *     `revokeWallets` without any modal UI.
- *   - `useSolanaWallets` — does NOT exist in this version. We derive the
- *     Solana wallet from `usePrivy().user.linkedAccounts`, filtering for
- *     `type === 'wallet' && chainType === 'solana'`.
- *   - `useWallets` from `@privy-io/react-auth` returns Ethereum-only
- *     `ConnectedWallet[]` and does not include Solana wallets.
+ *   - `useSigners().addSigners(...)` — the TEE-compatible API. Both
+ *     `useDelegatedActions` and `useHeadlessDelegatedActions` are
+ *     on-device-only and throw / hang on TEE apps. `addSigners` attaches
+ *     a server-side key quorum (registered in the Privy dashboard) so the
+ *     backend can sign with the user's wallet without further prompts.
+ *   - We get the Solana wallet from `useWallets()` in
+ *     `@privy-io/react-auth/solana`, NOT from `user.linkedAccounts`. The
+ *     latter has the address but no initialized wallet proxy, so passing
+ *     that address to `addSigners` throws "Wallet proxy not initialized".
  */
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  usePrivy,
-  useHeadlessDelegatedActions,
-  type LinkedAccountWithMetadata,
-} from "@privy-io/react-auth";
+import { usePrivy, useSigners } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+
+const SIGNER_ID = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
 
 import { Button } from "@/components/ui/button";
 
@@ -39,13 +40,6 @@ interface DelegationRecord {
 
 interface GetDelegationResponse {
   delegation: DelegationRecord | null;
-}
-
-/** Narrow a LinkedAccountWithMetadata to a Solana wallet entry. */
-function isSolanaWalletAccount(
-  account: LinkedAccountWithMetadata,
-): account is Extract<LinkedAccountWithMetadata, { type: "wallet" }> {
-  return account.type === "wallet" && account.chainType === "solana";
 }
 
 // ---------------------------------------------------------------------------
@@ -77,17 +71,14 @@ function shortPubkey(pubkey: string): string {
 
 export function AgentDelegationCard() {
   const { user, getAccessToken } = usePrivy();
-  const { delegateWallet, revokeWallets } = useHeadlessDelegatedActions();
+  const { addSigners, removeSigners } = useSigners();
+  const { wallets: solanaWallets, ready: walletsReady } = useSolanaWallets();
 
   const [delegation, setDelegation] = useState<DelegationRecord | null>(null);
   const [loadingState, setLoadingState] = useState<"idle" | "fetching" | "mutating">("fetching");
   const [error, setError] = useState<string | null>(null);
 
-  // Derive the first Solana wallet from the user's linked accounts.
-  // `useWallets()` from @privy-io/react-auth only surfaces Ethereum wallets;
-  // Solana wallets must be found via `user.linkedAccounts`.
-  const solanaWallet =
-    user?.linkedAccounts.find(isSolanaWalletAccount) ?? null;
+  const solanaWallet = walletsReady && solanaWallets.length > 0 ? solanaWallets[0] : null;
 
   // ---------------------------------------------------------------------------
   // Fetch current delegation from DB
@@ -125,13 +116,25 @@ export function AgentDelegationCard() {
 
   async function onAuthorize() {
     if (!solanaWallet) return;
+    if (!SIGNER_ID) {
+      setError("Missing NEXT_PUBLIC_PRIVY_SIGNER_ID env var.");
+      return;
+    }
     setError(null);
     setLoadingState("mutating");
     try {
-      await delegateWallet({
-        address: solanaWallet.address,
-        chainType: "solana",
-      });
+      try {
+        await addSigners({
+          address: solanaWallet.address,
+          signers: [{ signerId: SIGNER_ID, policyIds: [] }],
+        });
+      } catch (signerErr) {
+        // Idempotency: if the signer is already attached in Privy (e.g. a
+        // previous attempt added it but the backend POST below failed and
+        // left the DB row missing), treat it as success and proceed.
+        const msg = signerErr instanceof Error ? signerErr.message : "";
+        if (!/duplicate signer/i.test(msg)) throw signerErr;
+      }
       const token = await getAccessToken();
       if (!token) throw new Error("No access token");
       const r = await fetch("/api/agent-delegation", {
@@ -163,10 +166,11 @@ export function AgentDelegationCard() {
   // ---------------------------------------------------------------------------
 
   async function onRevoke() {
+    if (!solanaWallet) return;
     setError(null);
     setLoadingState("mutating");
     try {
-      await revokeWallets();
+      await removeSigners({ address: solanaWallet.address });
       const token = await getAccessToken();
       if (!token) throw new Error("No access token");
       const r = await fetch("/api/agent-delegation", {

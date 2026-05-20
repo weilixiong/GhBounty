@@ -1,5 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { signSolanaTransaction } from "@/lib/privy/delegated-signer";
+
+beforeEach(() => {
+  // signSolanaTransaction reads PRIVY_SIGNER_PRIVATE_KEY to attach an
+  // authorization_context to the SDK call. The mocked Privy client doesn't
+  // validate the key, so any non-empty string works for these tests.
+  process.env.PRIVY_SIGNER_PRIVATE_KEY = "test-private-key";
+});
 
 function makeFakeClient(opts: {
   getByAddressImpl?: (...args: any[]) => any;

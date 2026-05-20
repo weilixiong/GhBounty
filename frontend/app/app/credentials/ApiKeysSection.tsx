@@ -100,7 +100,12 @@ export function ApiKeysSection() {
     } finally {
       setLoading(false);
     }
-  }, [privy]);
+    // The Privy context object's identity changes on every render. Depending on
+    // it caused refresh → useEffect → setState → render → new refresh → loop.
+    // Capturing privy via closure on mount is fine here — token refresh
+    // happens server-side and one initial load is sufficient.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     void refresh();
