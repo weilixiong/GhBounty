@@ -33,4 +33,18 @@ jobs:
           python-version: "3.12"
       - run: pip install ruff pytest genlayer-test
       - run: ruff check bounty_judge/contracts
+      # GHB-202 workaround: genlayer-test resolves the genvm version at runtime
+      # via HEAD https://github.com/genlayerlabs/genvm/releases/latest. On
+      # 2026-05-20 GenLayer Labs marked v0.3.0-rc0 as "latest" and removed
+      # the `genvm-universal.tar.xz` asset, so every CI run hits 404.
+      # Pre-seeding the cache with v0.2.16 makes `list_cached_versions()`
+      # return it first and skips the "latest" lookup entirely.
+      # Remove this step once upstream restores a universal tarball or
+      # gltest learns to download platform-specific assets.
+      - name: Pre-cache genvm v0.2.16 (GHB-202)
+        run: |
+          mkdir -p ~/.cache/gltest-direct
+          curl -fL \
+            "https://github.com/genlayerlabs/genvm/releases/download/v0.2.16/genvm-universal.tar.xz" \
+            -o ~/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz
       - run: pytest bounty_judge/tests
